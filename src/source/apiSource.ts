@@ -1,10 +1,12 @@
 import type { Lyrics, MusicSource, Track } from './MusicSource'
 
 /**
- * Audius first: real audio, CORS-friendly, no key, lowest legal risk — but an
- * indie-only catalogue, so most mainstream searches come back empty. Piped is
- * the fallback for catalogue coverage (anything on YouTube), at the cost of
- * relying on third-party public instances of unknown uptime.
+ * Audius only, live — see docs/MUSIC_SOURCE.md. googlevideo (Piped/Invidious)
+ * sends no CORS headers on the audio bytes themselves, so nothing fetched
+ * through it can ever become a Blob for offline download, which this app
+ * requires. The Piped code below (pipedStream/fromPipedStream and the
+ * getters' 'piped' branch) is kept, working and tested, but unreachable:
+ * search() never produces a piped:-prefixed id, by design, not by accident.
  */
 const AUDIUS_API = 'https://api.audius.co/v1'
 const APP_NAME = 'spothub'
@@ -88,30 +90,6 @@ async function pipedFetch<T>(path: string): Promise<T> {
 
 const pipedStream = (videoId: string): Promise<PipedStream> => pipedFetch(`/streams/${videoId}`)
 
-interface PipedSearchItem {
-  url: string
-  title: string
-  uploaderName: string
-  thumbnail: string
-  duration: number
-  type: string
-}
-
-async function pipedSearch(query: string): Promise<Track[]> {
-  const { items } = await pipedFetch<{ items: PipedSearchItem[] }>(
-    `/search?q=${encodeURIComponent(query)}&filter=music_songs`,
-  )
-  return items
-    .filter((it) => it.type === 'stream' && it.url.includes('v='))
-    .map((it) => ({
-      id: withId('piped', it.url.split('v=')[1] ?? ''),
-      title: it.title,
-      artist: it.uploaderName,
-      durationSec: it.duration,
-      artworkUrl: it.thumbnail,
-    }))
-}
-
 /* --------------------------------------------------------------- track --- */
 
 async function resolveTrack(id: string): Promise<Track> {
@@ -140,14 +118,9 @@ export const apiSource: MusicSource = {
 
     try {
       const { data } = await audiusGet<{ data: AudiusTrack[] }>(`/tracks/search?query=${encodeURIComponent(q)}`)
-      if (data.length > 0) return data.map(fromAudius)
+      return data.map(fromAudius)
     } catch {
-      // fall through to Piped
-    }
-
-    try {
-      return await pipedSearch(q)
-    } catch {
+      // Audius down — ruled out reaching for Piped here, see file header.
       return []
     }
   },

@@ -10,38 +10,21 @@ afterEach(() => {
 })
 
 describe('apiSource.search', () => {
-  it('falls back to Piped when Audius has no results', async () => {
+  it('returns empty, and never calls Piped, when Audius has no results', async () => {
     const urls: string[] = []
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
         urls.push(url)
-        if (url.includes('api.audius.co')) return jsonResponse({ data: [] })
-        return jsonResponse({
-          items: [
-            {
-              url: '/watch?v=abc123',
-              title: 'Song',
-              uploaderName: 'Artist',
-              thumbnail: 'art.jpg',
-              duration: 200,
-              type: 'stream',
-            },
-          ],
-        })
+        return jsonResponse({ data: [] })
       }),
     )
 
-    const results = await apiSource.search('some song')
-
-    expect(results).toEqual([
-      { id: 'piped:abc123', title: 'Song', artist: 'Artist', durationSec: 200, artworkUrl: 'art.jpg' },
-    ])
-    expect(urls.some((u) => u.includes('api.audius.co'))).toBe(true)
-    expect(urls.some((u) => u.includes('pipedapi.kavin.rocks'))).toBe(true)
+    expect(await apiSource.search('some song')).toEqual([])
+    expect(urls.some((u) => u.includes('pipedapi'))).toBe(false)
   })
 
-  it('skips Piped when Audius already has a match', async () => {
+  it('returns Audius results directly', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () =>

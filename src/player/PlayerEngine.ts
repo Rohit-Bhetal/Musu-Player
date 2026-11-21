@@ -2,7 +2,7 @@ import type { Track } from '../source/MusicSource'
 import { createStore, type Store } from '../ui/store'
 import { toast } from '../ui/toast'
 import { logEvent } from '../diagnostics'
-import { loadPlayerState, savePlayerState, saveTrack } from '../storage/db'
+import { clearPlayerState, loadPlayerState, savePlayerState, saveTrack } from '../storage/db'
 import { attachMediaSession, setMediaMetadata, setMediaPlaybackState, setMediaPosition } from './mediaSession'
 import { identityOrder, nextPos, prevPos, shuffledOrder, type RepeatMode } from './queue'
 
@@ -202,6 +202,21 @@ export class PlayerEngine {
     const saved = await loadPlayerState().catch(() => undefined)
     if (!saved || saved.queue.length === 0 || saved.order.length === 0) return
     const index = Math.min(Math.max(0, saved.index), saved.order.length - 1)
+    const first = saved.queue[saved.order[index] ?? -1]
+    if (!first) return
+
+    // A queue saved under a different MusicSource holds ids this one cannot
+    // resolve. Drop it once here, instead of cascading a skip-error toast per
+    // track on every single launch. Keeping the resolved URL means goTo below
+    // reuses it rather than fetching twice.
+    try {
+      this.prepared = { trackId: first.id, resolved: await this.deps.resolveUrl(first) }
+    } catch {
+      await clearPlayerState().catch(() => undefined)
+      logEvent('player:restore-dropped', first.id)
+      return
+    }
+
     this.state.set({
       queue: saved.queue,
       order: saved.order,

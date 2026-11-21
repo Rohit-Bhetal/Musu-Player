@@ -1,18 +1,14 @@
 import type { MusicSource } from './MusicSource'
-import { mockSource } from './mockSource'
+import { apiSource } from './apiSource'
 
 /**
- * mockSource until the catalogue question in docs/MUSIC_SOURCE.md is answered.
+ * apiSource is Audius-only, live — see docs/MUSIC_SOURCE.md. Its Piped
+ * fallback is kept in the file but disabled: googlevideo sends no CORS
+ * headers on the audio bytes, so nothing from that path can ever be
+ * downloaded for offline use, which rules it out regardless of the
+ * YouTube-ToS question.
  *
- * apiSource (Audius + Piped) is written and tested, and switching is this one
- * line — but do NOT flip it without deciding two things first:
- *
- *  1. Piped resolves to googlevideo URLs that send no CORS headers. They play
- *     as <audio src>, but cannot be fetch()ed into a Blob, so songs from that
- *     path can never be downloaded for offline use — the whole point of the app.
- *  2. The Piped path carries YouTube-ToS risk on a public deployment.
- *
- * P3-P5 are also meant to be built against this source: generated tones, no
- * network, deterministic, so the download pipeline can be tested offline.
+ * P3-P5 (the download pipeline) may still be worth building/testing against
+ * mockSource first — swap back to it here for that: deterministic, no network.
  */
-export const source: MusicSource = mockSource
+export const source: MusicSource = apiSource

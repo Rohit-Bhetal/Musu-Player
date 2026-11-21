@@ -130,3 +130,4 @@ export const savePlayerState = (state: PersistedPlayerState): Promise<void> =>
   idbPut('state', state, PLAYER_STATE_KEY)
 export const loadPlayerState = (): Promise<PersistedPlayerState | undefined> =>
   idbGet<PersistedPlayerState>('state', PLAYER_STATE_KEY)
+export const clearPlayerState = (): Promise<void> => idbDelete('state', PLAYER_STATE_KEY)

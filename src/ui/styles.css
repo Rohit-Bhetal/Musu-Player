@@ -10,6 +10,13 @@
   --border: #0000001a;
   --skeleton: #00000010;
   color-scheme: light dark;
+
+  /* RESPONSIVE ADDITION */
+  /* Content cap. --gutter is the leftover half-width, so padding alone centres
+     content while the scroll container stays full-bleed (wheel works anywhere).
+     Resolves to 0 below --maxw, so phones are untouched. */
+  --maxw: 760px;
+  --gutter: max(0px, calc((100% - var(--maxw)) / 2));
 }
 
 @media (prefers-color-scheme: dark) {
@@ -73,8 +80,12 @@ input {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: calc(env(safe-area-inset-top) + 10px) max(env(safe-area-inset-left), 16px) 28px
-    max(env(safe-area-inset-right), 16px);
+  /* longhands, not the 4-value shorthand: its top/right/bottom/left order is
+     easy to pair up wrong with inset-left/inset-right */
+  padding-block: calc(env(safe-area-inset-top) + 10px) 28px;
+  /* RESPONSIVE ADDITION: var(--gutter) added to the inline padding */
+  padding-inline: max(env(safe-area-inset-left), 16px, var(--gutter))
+    max(env(safe-area-inset-right), 16px, var(--gutter));
 }
 
 .dock {
@@ -84,6 +95,8 @@ input {
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
+  /* RESPONSIVE ADDITION: bar stays full-bleed, mini player + tabs align with content */
+  padding-inline: var(--gutter);
 }
 
 h1 {
@@ -297,7 +310,8 @@ h2 {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px max(env(safe-area-inset-left), 10px) 6px max(env(safe-area-inset-right), 10px);
+  padding-block: 6px;
+  padding-inline: max(env(safe-area-inset-left), 10px) max(env(safe-area-inset-right), 10px);
   border-bottom: 1px solid var(--border);
 }
 
@@ -349,14 +363,47 @@ h2 {
   flex-direction: column;
   gap: 14px;
   background: var(--bg);
-  padding: calc(env(safe-area-inset-top) + 6px) max(env(safe-area-inset-left), 22px)
-    calc(env(safe-area-inset-bottom) + 22px) max(env(safe-area-inset-right), 22px);
+  padding-block: calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-bottom) + 22px);
+  padding-inline: max(env(safe-area-inset-left), 22px) max(env(safe-area-inset-right), 22px);
   animation: sheet-up 0.24s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @keyframes sheet-up {
   from {
     transform: translateY(100%);
+  }
+}
+
+/* RESPONSIVE ADDITION */
+/* Wide + tall only: a phone in landscape is wide but short, and must keep the
+   full-bleed sheet with its safe-area insets. The sheet still covers the
+   viewport (so it stays modal and nothing behind is clickable); ::before paints
+   the card. z-index:-1 puts it above the sheet's own background — now the
+   scrim — but below the content, so no wrapper element is needed. */
+@media (min-width: 700px) and (min-height: 600px) {
+  .nowplaying {
+    --np-x: max(16px, calc((100% - 420px) / 2));
+    --np-y: clamp(16px, 6vh, 56px);
+    padding: calc(var(--np-y) + 20px) calc(var(--np-x) + 24px);
+    background: #00000073;
+    animation-name: np-fade;
+  }
+
+  .nowplaying::before {
+    content: '';
+    position: absolute;
+    inset: var(--np-y) var(--np-x);
+    z-index: -1;
+    background: var(--bg);
+    border-radius: 22px;
+    box-shadow: 0 30px 90px #00000066;
+  }
+}
+
+/* RESPONSIVE ADDITION: a viewport-covering scrim sliding up looks wrong — fade instead */
+@keyframes np-fade {
+  from {
+    opacity: 0;
   }
 }
 
@@ -371,6 +418,8 @@ h2 {
   height: 44px;
   display: grid;
   place-items: center;
+  /* RESPONSIVE ADDITION: no visual effect until the pointer-hover background paints */
+  border-radius: 22px;
 }
 
 .np-art {
@@ -488,6 +537,9 @@ h2 {
   left: 12px;
   right: 12px;
   bottom: calc(env(safe-area-inset-bottom) + 118px);
+  /* RESPONSIVE ADDITION: auto margins centre it once the cap bites */
+  max-width: 420px;
+  margin-inline: auto;
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -541,6 +593,26 @@ h2 {
 @keyframes pulse {
   50% {
     opacity: 0.45;
+  }
+}
+
+/* ------------------------------------------------------------- hover --- */
+
+/* RESPONSIVE ADDITION */
+/* Mouse/trackpad only — on touch :hover sticks after a tap. The existing
+   :active rules stay as the touch feedback. */
+@media (hover: hover) {
+  .row-main:not(:disabled):hover,
+  .mini-open:hover,
+  .mini-btn:hover,
+  .np-controls button:not(.np-play):hover,
+  .np-close:hover {
+    background: var(--surface-2);
+  }
+
+  .tabbar button:hover,
+  .chip:hover {
+    opacity: 0.75;
   }
 }
 

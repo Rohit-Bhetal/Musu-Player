@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import type { CSSProperties, JSX } from 'react'
 import { useState } from 'react'
 import { player } from '../player'
 import { currentTrackOf } from '../player/PlayerEngine'
@@ -27,7 +27,8 @@ function Scrubber(): JSX.Element {
   }
 
   return (
-    <div className="scrub">
+    // --p drives the filled part of the track: a styled range loses the free `accent-color` fill
+    <div className="scrub" style={{ '--p': max > 0 ? Math.min(value, max) / max : 0 } as CSSProperties}>
       <input
         type="range"
         min={0}

@@ -7,17 +7,29 @@ import { player } from '../player'
 import { currentTrackOf } from '../player/PlayerEngine'
 import { useStore } from './store'
 import { useAsync } from './useAsync'
-import { RowSkeleton, TrackRow } from './TrackRow'
+import { Artwork } from './Artwork'
+import { sections } from './home'
 
-function groupByAlbum(tracks: readonly Track[]): [string, Track[]][] {
-  const groups = new Map<string, Track[]>()
-  for (const t of tracks) {
-    const key = t.album ?? 'Singles'
-    const list = groups.get(key)
-    if (list) list.push(t)
-    else groups.set(key, [t])
-  }
-  return [...groups]
+function greeting(): string {
+  const h = new Date().getHours()
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+}
+
+function Tile({ track, active, onSelect }: { track: Track; active: boolean; onSelect: () => void }): JSX.Element {
+  return (
+    <button
+      type="button"
+      className="tile"
+      onClick={onSelect}
+      aria-label={`Play ${track.title} by ${track.artist}`}
+    >
+      <Artwork src={track.artworkUrl} size="100%" alt="" radius={10} />
+      <span className="tile-title" style={active ? { color: 'var(--accent)' } : undefined}>
+        {track.title}
+      </span>
+      <span className="tile-sub">{track.artist}</span>
+    </button>
+  )
 }
 
 export function Library({ onPlay }: { onPlay: (queue: Track[], index: number) => void }): JSX.Element {
@@ -25,10 +37,11 @@ export function Library({ onPlay }: { onPlay: (queue: Track[], index: number) =>
   const playingId = currentTrackOf(useStore(player.state))?.id
   const [dismissed, setDismissed] = useState(false)
   const { data, error, loading } = useAsync(() => source.search(''), [isOnline])
+  const rows = sections(data ?? [])
 
   return (
     <>
-      <h1>Library</h1>
+      <h1>{greeting()}</h1>
 
       {!isStandalone() && !dismissed ? (
         <div className="banner">
@@ -44,23 +57,26 @@ export function Library({ onPlay }: { onPlay: (queue: Track[], index: number) =>
       {!isOnline ? <div className="banner">Offline — showing what is already on this device.</div> : null}
 
       {loading ? (
-        <div className="rows">
-          {Array.from({ length: 6 }, (_, i) => (
-            <RowSkeleton key={i} />
+        <div className="strip" aria-hidden="true">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div key={i} className="tile">
+              <div className="skeleton" style={{ width: '100%', aspectRatio: '1 / 1' }} />
+            </div>
           ))}
         </div>
       ) : error ? (
         <p className="empty">Could not load the catalogue. {isOnline ? 'Pull down to retry.' : 'You are offline.'}</p>
+      ) : rows.length === 0 ? (
+        <p className="empty">Nothing to play yet.</p>
       ) : (
-        groupByAlbum(data ?? []).map(([album, tracks]) => (
-          <section key={album}>
-            <h2>{album}</h2>
-            <div className="rows">
+        rows.map(([title, tracks]) => (
+          <section key={title}>
+            <h2>{title}</h2>
+            <div className="strip">
               {tracks.map((track, i) => (
-                <TrackRow
+                <Tile
                   key={track.id}
                   track={track}
-                  subtitle={track.artist}
                   active={track.id === playingId}
                   onSelect={() => onPlay(tracks, i)}
                 />

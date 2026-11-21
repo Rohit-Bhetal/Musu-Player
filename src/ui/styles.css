@@ -2,7 +2,7 @@
   --bg: #fbfbfd;
   --surface: #ffffff;
   --surface-2: #e9e9ee;
-  --dock: #f4f4f7f2;
+  --dock: #f4f4f7d9;
   --text: #0b0b0f;
   --muted: #6b6b72;
   --accent: #3b6ef5;
@@ -17,6 +17,14 @@
      Resolves to 0 below --maxw, so phones are untouched. */
   --maxw: 760px;
   --gutter: max(0px, calc((100% - var(--maxw)) / 2));
+
+  /* GLASS ADDITION */
+  /* One translucent fill and one blur recipe for every frosted surface. Both are
+     derived from the palette, so the dark block below re-points them for free and
+     --border stays the glass edge. color-mix needs iOS 16.2+; older WebKit just
+     drops the fill and the control keeps its rim. */
+  --glass: color-mix(in srgb, var(--surface) 55%, transparent);
+  --blur: saturate(180%) blur(20px);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -24,7 +32,7 @@
     --bg: #0b0b0f;
     --surface: #17171d;
     --surface-2: #2a2a2a;
-    --dock: #141419f2;
+    --dock: #141419d9;
     --text: #ffffff;
     --muted: #a0a0a8;
     --accent: #618dff;
@@ -84,15 +92,17 @@ input {
      easy to pair up wrong with inset-left/inset-right */
   padding-block: calc(env(safe-area-inset-top) + 10px) 28px;
   /* RESPONSIVE ADDITION: var(--gutter) added to the inline padding */
-  padding-inline: max(env(safe-area-inset-left), 16px, var(--gutter))
-    max(env(safe-area-inset-right), 16px, var(--gutter));
+  /* Named so .strip can cancel exactly this much and bleed to the screen edges. */
+  --pad-l: max(env(safe-area-inset-left), 16px, var(--gutter));
+  --pad-r: max(env(safe-area-inset-right), 16px, var(--gutter));
+  padding-inline: var(--pad-l) var(--pad-r);
 }
 
 .dock {
   flex: 0 0 auto;
   background: var(--dock);
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
   /* RESPONSIVE ADDITION: bar stays full-bleed, mini player + tabs align with content */
@@ -241,7 +251,8 @@ h2 {
   scrollbar-width: none;
 }
 
-.chips::-webkit-scrollbar {
+.chips::-webkit-scrollbar,
+.strip::-webkit-scrollbar {
   display: none;
 }
 
@@ -259,6 +270,53 @@ h2 {
 .chip[aria-pressed='true'] {
   background: var(--accent);
   color: var(--on-accent);
+}
+
+/* ------------------------------------------------- home tile carousel --- */
+
+/* Same flex + overflow-x + hidden-scrollbar technique as .chips above. */
+.strip {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+  /* cancel .screen's inline padding, then re-add it inside, so tiles scroll out
+     from under the screen edge instead of stopping short of it */
+  margin-inline: calc(-1 * var(--pad-l)) calc(-1 * var(--pad-r));
+  padding-inline: var(--pad-l) var(--pad-r);
+}
+
+.tile {
+  flex: 0 0 auto;
+  width: 148px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 14px;
+  text-align: left;
+}
+
+.tile:active {
+  background: var(--surface-2);
+}
+
+.tile-title,
+.tile-sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tile-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tile-sub {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 /* ------------------------------------------------------------ search --- */
@@ -321,6 +379,7 @@ h2 {
   left: 0;
   height: 2px;
   background: var(--accent);
+  border-radius: 0 2px 2px 0;
   transition: width 0.25s linear;
 }
 
@@ -333,13 +392,15 @@ h2 {
   min-height: 48px;
   padding: 2px;
   text-align: left;
-  border-radius: 10px;
+  border-radius: 12px;
 }
 
 .mini-open:active {
   background: var(--surface-2);
 }
 
+/* Cupertino glass pill. No backdrop-filter of its own: .dock already blurs
+   everything behind it, so a nested one would cost a layer and show nothing. */
 .mini-btn {
   flex: 0 0 auto;
   width: 46px;
@@ -347,6 +408,8 @@ h2 {
   display: grid;
   place-items: center;
   border-radius: 23px;
+  background: var(--glass);
+  border: 1px solid var(--border);
 }
 
 .mini-btn:active {
@@ -362,7 +425,10 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  background: var(--bg);
+  /* GLASS ADDITION: frosted sheet over the screen it covers, not an opaque slab */
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
   padding-block: calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-bottom) + 22px);
   padding-inline: max(env(safe-area-inset-left), 22px) max(env(safe-area-inset-right), 22px);
   animation: sheet-up 0.24s cubic-bezier(0.32, 0.72, 0, 1);
@@ -394,7 +460,10 @@ h2 {
     position: absolute;
     inset: var(--np-y) var(--np-x);
     z-index: -1;
+    /* opaque: the scrim behind it is already blurred, and a translucent card on
+       top of a 45% black scrim muddies the light palette */
     background: var(--bg);
+    border: 1px solid var(--border);
     border-radius: 22px;
     box-shadow: 0 30px 90px #00000066;
   }
@@ -418,8 +487,9 @@ h2 {
   height: 44px;
   display: grid;
   place-items: center;
-  /* RESPONSIVE ADDITION: no visual effect until the pointer-hover background paints */
   border-radius: 22px;
+  background: var(--glass);
+  border: 1px solid var(--border);
 }
 
 .np-art {
@@ -432,7 +502,7 @@ h2 {
 
 .np-art .art {
   max-width: min(100%, 68vh);
-  box-shadow: 0 18px 44px #00000047;
+  box-shadow: 0 24px 60px #0000005c;
 }
 
 .np-meta {
@@ -445,11 +515,40 @@ h2 {
   white-space: nowrap;
 }
 
+/* Cupertino scrubber: a thin capsule track with a small round knob. Styling the
+   range costs the free `accent-color` fill, so the played part is a gradient on
+   the input itself — which also keeps a sane bar in engines that ignore the
+   -webkit thumb pseudo-element. --p (0..1) comes from NowPlaying. */
 .scrub input[type='range'] {
   width: 100%;
   height: 28px;
+  appearance: none;
+  -webkit-appearance: none;
   accent-color: var(--accent);
-  background: none;
+  background: linear-gradient(to right, var(--accent) calc(var(--p, 0) * 100%), var(--surface-2) 0) center / 100% 6px
+    no-repeat;
+  border-radius: 3px;
+}
+
+/* same gradient again, but on the track, which can take the capsule radius */
+.scrub input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--accent) calc(var(--p, 0) * 100%), var(--surface-2) 0);
+}
+
+.scrub input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -4px; /* centres the 14px knob on the 6px track */
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  background: var(--text);
+  box-shadow: 0 1px 4px #00000047;
+}
+
+.scrub input[type='range']:disabled {
+  opacity: 0.5;
 }
 
 .scrub-times {
@@ -477,19 +576,23 @@ h2 {
 }
 
 .np-play {
-  width: 64px;
-  height: 64px;
+  width: 68px;
+  height: 68px;
   background: var(--accent);
   color: var(--on-accent);
-  border-radius: 32px;
+  border-radius: 34px;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
 .np-toggle {
   color: var(--muted);
 }
 
+/* the active toggle reads as a selected Cupertino control, not just a tinted icon */
 .np-toggle.on {
   color: var(--accent);
+  background: var(--glass);
+  border: 1px solid var(--border);
 }
 
 /* --------------------------------------------------------------- log --- */
@@ -603,6 +706,7 @@ h2 {
    :active rules stay as the touch feedback. */
 @media (hover: hover) {
   .row-main:not(:disabled):hover,
+  .tile:hover,
   .mini-open:hover,
   .mini-btn:hover,
   .np-controls button:not(.np-play):hover,

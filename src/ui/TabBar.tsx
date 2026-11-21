@@ -2,7 +2,8 @@ import type { JSX } from 'react'
 import { Icon, type IconName } from './Icon'
 
 export const TABS = [
-  { id: 'library', label: 'Library', icon: 'library' },
+  // id stays 'library' — it is only the internal tab key, and renaming it touches App state for nothing
+  { id: 'library', label: 'Home', icon: 'home' },
   { id: 'search', label: 'Search', icon: 'search' },
   { id: 'downloads', label: 'Downloads', icon: 'download' },
   { id: 'settings', label: 'Settings', icon: 'settings' },

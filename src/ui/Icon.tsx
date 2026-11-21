@@ -1,7 +1,7 @@
 import type { JSX } from 'react'
 
 const STROKE: Record<string, string[]> = {
-  library: ['M5 19V6', 'M10.5 19V6', 'm15.3 19.6 3.4-13'],
+  home: ['m3 11 9-7 9 7', 'M5.5 9.6V20h13V9.6', 'M9.8 20v-6h4.4v6'],
   search: ['M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14z', 'm20 20-4-4'],
   download: ['M12 3v12', 'm7 11 5 5 5-5', 'M4 20h16'],
   settings: ['M4 8h8', 'M17 8h3', 'M4 16h4', 'M13 16h7', 'M14.5 8a2 2 0 1 0-4 0 2 2 0 0 0 4 0z', 'M10.5 16a2 2 0 1 0-4 0 2 2 0 0 0 4 0z'],

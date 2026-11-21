@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { source } from '../source'
 import type { Track } from '../source/MusicSource'
 import { isStandalone, online } from '../pwa/pwa'
+import { player } from '../player'
+import { currentTrackOf } from '../player/PlayerEngine'
 import { useStore } from './store'
 import { useAsync } from './useAsync'
 import { RowSkeleton, TrackRow } from './TrackRow'
@@ -20,6 +22,7 @@ function groupByAlbum(tracks: readonly Track[]): [string, Track[]][] {
 
 export function Library({ onPlay }: { onPlay: (queue: Track[], index: number) => void }): JSX.Element {
   const isOnline = useStore(online)
+  const playingId = currentTrackOf(useStore(player.state))?.id
   const [dismissed, setDismissed] = useState(false)
   const { data, error, loading } = useAsync(() => source.search(''), [isOnline])
 
@@ -58,6 +61,7 @@ export function Library({ onPlay }: { onPlay: (queue: Track[], index: number) =>
                   key={track.id}
                   track={track}
                   subtitle={track.artist}
+                  active={track.id === playingId}
                   onSelect={() => onPlay(tracks, i)}
                 />
               ))}

@@ -60,6 +60,12 @@ the last 50 player and Media Session events.
 real sources clear the cross-origin-fetch bar (verified with real requests) and
 which do not.
 
+Search combines the music catalog with YouTube video results. YouTube title
+search requires a server-side `YOUTUBE_API_KEY`; playback uses YouTube's
+official embedded player and is not added to the offline library or download
+queue. Pasting a YouTube URL or ID loads the embed without searching. See
+[docs/YOUTUBE_SEARCH.md](docs/YOUTUBE_SEARCH.md) for API key setup.
+
 ## Deploy
 
 Static `dist/` with an SPA fallback — Cloudflare Pages or GitHub Pages. Written

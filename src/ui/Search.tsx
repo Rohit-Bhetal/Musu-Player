@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { source } from '../source'
 import type { Track } from '../source/MusicSource'
 import { useAsync } from './useAsync'
@@ -7,7 +7,13 @@ import { RowSkeleton, TrackRow } from './TrackRow'
 
 export function Search({ onPlay }: { onPlay: (queue: Track[], index: number) => void }): JSX.Element {
   const [query, setQuery] = useState('')
-  const { data, loading } = useAsync(() => source.search(query), [query])
+  // query now hits real APIs, not a free in-memory filter — debounce so typing doesn't fire a request per keystroke.
+  const [debounced, setDebounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(query), 300)
+    return () => clearTimeout(t)
+  }, [query])
+  const { data, loading } = useAsync(() => source.search(debounced), [debounced])
   const results = data ?? []
 
   return (

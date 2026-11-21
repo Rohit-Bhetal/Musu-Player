@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { identityOrder, nextPos, prevPos, shuffledOrder } from './queue'
+import { identityOrder, nextPos, prevPos, shouldRecover, shuffledOrder } from './queue'
 
 /** Deterministic stand-in for Math.random. */
 function seeded(seed: number): () => number {
@@ -70,5 +70,16 @@ describe('prevPos', () => {
 
   it('has nowhere to go in an empty queue', () => {
     expect(prevPos(0, 0, true)).toBeNull()
+  })
+})
+
+describe('shouldRecover', () => {
+  it('retries a mid-song drop once, then skips', () => {
+    expect(shouldRecover(42, false)).toBe(true) // playing, not yet retried
+    expect(shouldRecover(42, true)).toBe(false) // already retried this episode
+  })
+
+  it('skips a track that never started playing', () => {
+    expect(shouldRecover(0, false)).toBe(false)
   })
 })

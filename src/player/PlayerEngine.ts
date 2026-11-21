@@ -4,7 +4,7 @@ import { toast } from '../ui/toast'
 import { logEvent } from '../diagnostics'
 import { clearPlayerState, loadPlayerState, savePlayerState, saveTrack } from '../storage/db'
 import { attachMediaSession, setMediaMetadata, setMediaPlaybackState, setMediaPosition } from './mediaSession'
-import { identityOrder, nextPos, prevPos, shuffledOrder, type RepeatMode } from './queue'
+import { identityOrder, nextPos, prevPos, shouldRecover, shuffledOrder, type RepeatMode } from './queue'
 
 export type { RepeatMode }
 
@@ -68,6 +68,8 @@ export class PlayerEngine {
   private artwork: ResolvedUrl | null = null
   private pendingSeek: number | null = null
   private failures = 0
+  /** The track whose mid-playback error we already re-resolved once this episode. */
+  private retriedTrackId: string | null = null
 
   constructor(deps: PlayerDeps) {
     this.deps = deps
@@ -346,6 +348,7 @@ export class PlayerEngine {
 
   private onPlaying = (): void => {
     this.failures = 0
+    this.retriedTrackId = null
     this.patch({ loading: false })
     this.setPlaying(true)
   }
@@ -410,8 +413,34 @@ export class PlayerEngine {
 
   private onError = (): void => {
     if (!this.audio.src) return
-    const code = this.audio.error?.code
-    this.fail(this.currentTrack, new Error(`media error ${code ?? '?'}`))
+    const track = this.currentTrack
+    if (track && shouldRecover(this.progress.get().positionSec, this.retriedTrackId === track.id)) {
+      this.retriedTrackId = track.id
+      void this.recover(track)
+      return
+    }
+    this.fail(track, new Error(`media error ${this.audio.error?.code ?? '?'}`))
+  }
+
+  /** A stale CDN URL or a transient drop errors the element mid-song; re-resolve
+   * the same track and resume from where we were, rather than skipping it. */
+  private async recover(track: Track): Promise<void> {
+    const resumeAt = this.progress.get().positionSec
+    this.patch({ loading: true })
+    let resolved: ResolvedUrl
+    try {
+      resolved = await this.deps.resolveUrl(track)
+    } catch (error) {
+      this.fail(track, error)
+      return
+    }
+    if (this.currentTrack?.id !== track.id) {
+      if (resolved.revoke) URL.revokeObjectURL(resolved.url) // user moved on while we awaited
+      return
+    }
+    this.pendingSeek = resumeAt // applied in onLoadedMetadata, same as restore()
+    this.swapSrc(resolved, true)
+    logEvent('player:recovered', `${track.title} @ ${Math.round(resumeAt)}s`)
   }
 
   private fail(track: Track | null, error: unknown): void {

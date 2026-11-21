@@ -28,3 +28,11 @@ export function prevPos(pos: number, len: number, wrap: boolean): number | null 
   if (pos - 1 >= 0) return pos - 1
   return wrap ? len - 1 : null
 }
+
+/**
+ * Whether a mid-playback media error should re-resolve and resume the same track
+ * rather than skip it: only once per error episode (else a dead URL loops), and
+ * only after real progress so a track that never loaded still skips.
+ */
+export const shouldRecover = (positionSec: number, alreadyRetried: boolean): boolean =>
+  !alreadyRetried && positionSec > 0

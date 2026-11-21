@@ -385,8 +385,8 @@ export class PlayerEngine {
       // the whole point of prepareNext: src + play() with nothing awaited in
       // between, so iOS keeps playing with the screen locked
       this.prepared = null
+      this.swapSrc(prepared.resolved, true) // src + play() before anything else
       this.patch({ index: pos })
-      this.swapSrc(prepared.resolved, true)
       void this.afterTrackChange(track)
       return
     }

@@ -9,3 +9,6 @@ dist-ssr
 public/icons/
 public/mock/
 dev-dist/
+
+# tsc -b artifact, regenerated on every build
+*.tsbuildinfo

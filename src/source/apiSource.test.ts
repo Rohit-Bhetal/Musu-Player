@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { apiSource } from './apiSource'
+import { apiSource, searchRadioStations } from './apiSource'
 
 function jsonResponse(body: unknown, ok = true): Response {
   return { ok, status: ok ? 200 : 500, json: async () => body } as Response
@@ -67,5 +67,61 @@ describe('apiSource.getStreamUrl', () => {
     )
 
     expect(await apiSource.getStreamUrl('piped:abc123')).toBe('high')
+  })
+
+  it('resolves a radio station by looking it up again', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse([
+          {
+            stationuuid: 'uuid-1',
+            name: 'Test FM',
+            url_resolved: 'https://stream.example/live',
+            tags: 'pop',
+            country: 'Testland',
+            favicon: '',
+          },
+        ]),
+      ),
+    )
+
+    expect(await apiSource.getStreamUrl('radio:uuid-1')).toBe('https://stream.example/live')
+  })
+})
+
+describe('searchRadioStations', () => {
+  it('drops http:// stations — mixed content fails silently from an https app', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse([
+          { stationuuid: 'a', name: 'Secure', url_resolved: 'https://ok.example/', tags: '', country: '', favicon: '' },
+          { stationuuid: 'b', name: 'Insecure', url_resolved: 'http://bad.example/', tags: '', country: '', favicon: '' },
+        ]),
+      ),
+    )
+
+    const results = await searchRadioStations('')
+
+    expect(results).toHaveLength(1)
+    expect(results[0]?.id).toBe('radio:a')
+  })
+
+  it('searches by name when a query is given, browses top stations otherwise', async () => {
+    const urls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        urls.push(url)
+        return jsonResponse([])
+      }),
+    )
+
+    await searchRadioStations('jazz')
+    await searchRadioStations('')
+
+    expect(urls[0]).toContain('/stations/search?name=jazz')
+    expect(urls[1]).toContain('/stations/topclick/30')
   })
 })

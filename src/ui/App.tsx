@@ -4,6 +4,7 @@ import type { Track } from '../source/MusicSource'
 import { player } from '../player'
 import { Library } from './Library'
 import { Search } from './Search'
+import { Radio } from './Radio'
 import { Downloads } from './Downloads'
 import { Settings } from './Settings'
 import { MiniPlayer } from './MiniPlayer'
@@ -23,6 +24,7 @@ export function App(): JSX.Element {
       <main className="screen">
         {tab === 'library' ? <Library onPlay={onPlay} /> : null}
         {tab === 'search' ? <Search onPlay={onPlay} /> : null}
+        {tab === 'radio' ? <Radio onPlay={onPlay} /> : null}
         {tab === 'downloads' ? <Downloads /> : null}
         {tab === 'settings' ? <Settings /> : null}
       </main>

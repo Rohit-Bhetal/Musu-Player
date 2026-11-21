@@ -12,15 +12,16 @@ const AUDIUS_API = 'https://api.audius.co/v1'
 const APP_NAME = 'spothub'
 const PIPED_INSTANCES = ['https://pipedapi.kavin.rocks', 'https://pipedapi-libre.kavin.rocks']
 const LRCLIB_API = 'https://lrclib.net/api'
+const RADIO_API = 'https://de1.api.radio-browser.info/json'
 
-type Backend = 'audius' | 'piped'
+type Backend = 'audius' | 'piped' | 'radio'
 
 const withId = (backend: Backend, rawId: string): string => `${backend}:${rawId}`
 
 function splitId(id: string): [Backend, string] {
   const i = id.indexOf(':')
   const backend = id.slice(0, i)
-  if (backend !== 'audius' && backend !== 'piped') throw new Error(`unknown track id ${id}`)
+  if (backend !== 'audius' && backend !== 'piped' && backend !== 'radio') throw new Error(`unknown track id ${id}`)
   return [backend, id.slice(i + 1)]
 }
 
@@ -90,6 +91,54 @@ async function pipedFetch<T>(path: string): Promise<T> {
 
 const pipedStream = (videoId: string): Promise<PipedStream> => pipedFetch(`/streams/${videoId}`)
 
+/* -------------------------------------------------------------- radio --- */
+
+interface RadioStation {
+  stationuuid: string
+  name: string
+  url_resolved: string
+  tags: string
+  country: string
+  favicon: string
+}
+
+function fromRadioStation(s: RadioStation): Track {
+  return {
+    id: withId('radio', s.stationuuid),
+    title: s.name.trim() || 'Radio station',
+    artist: s.tags || s.country || 'Live radio',
+    durationSec: undefined,
+    artworkUrl: s.favicon || undefined,
+  }
+}
+
+async function radioLookup(uuid: string): Promise<RadioStation> {
+  const res = await fetch(`${RADIO_API}/stations/byuuid?uuids=${uuid}`)
+  if (!res.ok) throw new Error(`radio ${res.status}`)
+  const [station] = (await res.json()) as RadioStation[]
+  if (!station) throw new Error(`unknown station ${uuid}`)
+  return station
+}
+
+// Mixed content: plenty of listed stations are still bare http:// and silently fail
+// to load from this https:// app, so only https stations are offered at all.
+const isPlayable = (s: RadioStation): boolean => s.url_resolved.startsWith('https://')
+
+export async function searchRadioStations(query: string): Promise<Track[]> {
+  const q = query.trim()
+  const path = q
+    ? `/stations/search?name=${encodeURIComponent(q)}&limit=30&hidebroken=true&order=clickcount&reverse=true`
+    : `/stations/topclick/30?hidebroken=true`
+  try {
+    const res = await fetch(`${RADIO_API}${path}`)
+    if (!res.ok) throw new Error(`radio ${res.status}`)
+    const stations = (await res.json()) as RadioStation[]
+    return stations.filter(isPlayable).map(fromRadioStation)
+  } catch {
+    return []
+  }
+}
+
 /* --------------------------------------------------------------- track --- */
 
 async function resolveTrack(id: string): Promise<Track> {
@@ -98,6 +147,7 @@ async function resolveTrack(id: string): Promise<Track> {
     const { data } = await audiusGet<{ data: AudiusTrack }>(`/tracks/${raw}`)
     return fromAudius(data)
   }
+  if (backend === 'radio') return fromRadioStation(await radioLookup(raw))
   return fromPipedStream(raw, await pipedStream(raw))
 }
 
@@ -130,6 +180,7 @@ export const apiSource: MusicSource = {
   async getStreamUrl(id) {
     const [backend, raw] = splitId(id)
     if (backend === 'audius') return `${AUDIUS_API}/tracks/${raw}/stream?app_name=${APP_NAME}`
+    if (backend === 'radio') return (await radioLookup(raw)).url_resolved
     const best = [...(await pipedStream(raw)).audioStreams].sort((a, b) => b.bitrate - a.bitrate)[0]
     if (!best) throw new Error(`no audio stream for ${id}`)
     return best.url
@@ -141,6 +192,7 @@ export const apiSource: MusicSource = {
       const { data } = await audiusGet<{ data: AudiusTrack }>(`/tracks/${raw}`)
       return (size <= 150 ? data.artwork?.['150x150'] : data.artwork?.['480x480']) ?? null
     }
+    if (backend === 'radio') return (await radioLookup(raw)).favicon || null
     return (await pipedStream(raw)).thumbnailUrl ?? null
   },
 

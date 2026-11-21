@@ -61,7 +61,8 @@ is not: one probe returned `302` then `401`, another returned a `302` carrying
 
 | | why |
 | --- | --- |
-| yt-dlp, Spotui `innertube`, Spotube | native/server extractors. Spotube is a Flutter app with a localhost-only server. Reference only. |
+| yt-dlp, Spotui `innertube` | native/server-side extractors. Cannot run in a browser. |
+| Spotube | Kotlin Multiplatform app (`composeApp`/`iosApp`), no network service to call. Its resolvers are **JavaScript** plugins in a Zipline sandbox — readable as reference, but a sandbox is not subject to CORS and a browser is, so the logic does not transfer. |
 | Cobalt | public API retired Nov 2024, self-host only. |
 | Invidious / Piped | googlevideo sends no CORS headers; playback rides a third party's proxy. Instance count degrading, real ToS exposure. |
 | go-music-api | self-host only, wants real streaming-account cookies. |

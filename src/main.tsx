@@ -1,0 +1,18 @@
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { App } from './ui/App'
+import { setupPWA } from './pwa/pwa'
+import { restoreDebugConsole } from './debug/eruda'
+import './ui/styles.css'
+
+setupPWA()
+restoreDebugConsole()
+
+const root = document.getElementById('root')
+if (!root) throw new Error('#root missing')
+
+createRoot(root).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)

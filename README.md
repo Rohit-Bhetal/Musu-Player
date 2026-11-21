@@ -54,6 +54,13 @@ Settings → **Debug console** lazy-loads [eruda](https://github.com/liriliri/er
 Settings → **Diagnostics** shows standalone / service-worker / network state and
 the last 50 player and Media Session events.
 
+## Where the music comes from
+
+`mockSource` today. See [docs/MUSIC_SOURCE.md](docs/MUSIC_SOURCE.md) for which
+real sources clear the cross-origin-fetch bar (verified with real requests) and
+which do not.
+
 ## Deploy
 
-Static `dist/` with an SPA fallback. See `docs/` (added in P7).
+Static `dist/` with an SPA fallback — Cloudflare Pages or GitHub Pages. Written
+up in P7.

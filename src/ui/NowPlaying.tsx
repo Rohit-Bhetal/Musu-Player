@@ -1,5 +1,5 @@
 import type { CSSProperties, JSX } from 'react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { player } from '../player'
 import { currentTrackOf } from '../player/PlayerEngine'
 import type { RepeatMode } from '../player/queue'
@@ -10,25 +10,80 @@ import { formatTime } from './TrackRow'
 import { Lyrics } from './Lyrics'
 import { Queue } from './Queue'
 import { TrackMenu } from './TrackMenu'
-import { tintFor, type Tint } from './artworkTint'
+import { LikeButton } from './LikeButton'
+import { OutputDeviceSheet } from './OutputDeviceSheet'
+import { useArtworkTint } from './artworkTint'
 import { CHARACTER_IMAGES } from '../characters'
+import { cameoSpot, type Box, type CameoSpot } from './cameo'
 
-const CAMEO_FRAME_MS = 3200
+const CAMEO_INTERVAL_MS = 10_000
 
-/** The header's balancing spacer becomes this while a song is playing — one
- * frame at a time from the character pics and gifs. */
+/** Both boxes in .nowplaying's own coordinates, which is also what top/left
+ * mean for an absolutely positioned child of it: the containing block is its
+ * padding box, and it has no border, so 0,0 is its border-box corner.
+ *
+ * The box to stay inside is the CONTENT box, not that border box: .nowplaying
+ * is a full-viewport scrim and its padding is what holds the visible player
+ * (on a wide screen, ~(100vw - 430px)/2 of empty scrim each side). Measuring
+ * against the border box is what sent the badge "out of the player". */
+function cameoBoxes(container: HTMLElement): { box: Box; art: Box } | null {
+  const art = container.querySelector('.art')
+  if (!art) return null
+  const rect = container.getBoundingClientRect()
+  const artRect = art.getBoundingClientRect()
+  const cs = getComputedStyle(container)
+  const top = parseFloat(cs.paddingTop)
+  const left = parseFloat(cs.paddingLeft)
+
+  return {
+    box: {
+      top,
+      left,
+      width: Math.max(0, rect.width - left - parseFloat(cs.paddingRight)),
+      height: Math.max(0, rect.height - top - parseFloat(cs.paddingBottom)),
+    },
+    art: {
+      top: artRect.top - rect.top,
+      left: artRect.left - rect.left,
+      width: artRect.width,
+      height: artRect.height,
+    },
+  }
+}
+
+/** A little character hopping around the margin outside the cover art, never
+ * over the art itself — a different random pick from CHARACTER_IMAGES every
+ * 10s, so it never settles on the same character or the same place for long. */
 function CharacterCameo(): JSX.Element {
-  const [frame, setFrame] = useState(0)
+  const wrapperRef = useRef<HTMLSpanElement>(null)
+  const prevIndexRef = useRef<number | null>(null)
+  const [spot, setSpot] = useState<CameoSpot | null>(null)
 
   useEffect(() => {
+    const pick = (): void => {
+      const container = wrapperRef.current?.parentElement
+      if (!container) return
+      const boxes = cameoBoxes(container)
+      const next = boxes ? cameoSpot(boxes.box, boxes.art, prevIndexRef.current, CHARACTER_IMAGES.length) : null
+      if (next) prevIndexRef.current = next.index
+      setSpot(next)
+    }
+    pick()
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const id = window.setInterval(() => setFrame((f) => (f + 1) % CHARACTER_IMAGES.length), CAMEO_FRAME_MS)
+    const id = window.setInterval(pick, CAMEO_INTERVAL_MS)
     return () => window.clearInterval(id)
   }, [])
 
   return (
-    <span className="np-cameo" aria-hidden="true">
-      <img key={frame} className="np-cameo-frame" src={CHARACTER_IMAGES[frame]} alt="" />
+    <span
+      ref={wrapperRef}
+      className="np-cameo"
+      style={spot ? { top: `${spot.topPx}px`, left: `${spot.leftPx}px` } : { visibility: 'hidden' }}
+      aria-hidden="true"
+    >
+      {spot ? (
+        <img key={`${spot.index}-${spot.topPx}-${spot.leftPx}`} className="np-cameo-frame" src={CHARACTER_IMAGES[spot.index]} alt="" />
+      ) : null}
     </span>
   )
 }
@@ -104,29 +159,12 @@ function Volume(): JSX.Element | null {
   )
 }
 
-/**
- * The cover's own colours, for the screen that is mostly cover. Null until the
- * extraction finishes, and permanently null for a cross-origin image that
- * taints the canvas — in both cases the sheet keeps the theme palette.
- */
-function useArtworkTint(artworkUrl: string | null | undefined): Tint | null {
-  const [tint, setTint] = useState<Tint | null>(null)
-  useEffect(() => {
-    let live = true
-    setTint(null)
-    void tintFor(artworkUrl).then((found) => live && setTint(found))
-    return () => {
-      live = false
-    }
-  }, [artworkUrl])
-  return tint
-}
-
 type NowPlayingView = 'art' | 'lyrics' | 'queue'
 
 export function NowPlaying({ onClose }: { onClose: () => void }): JSX.Element | null {
   const state = useStore(player.state)
   const [view, setView] = useState<NowPlayingView>('art')
+  const [devicePicker, setDevicePicker] = useState(false)
   const track = currentTrackOf(state)
   const tint = useArtworkTint(track?.artworkUrl)
   if (!track) return null
@@ -152,9 +190,8 @@ export function NowPlaying({ onClose }: { onClose: () => void }): JSX.Element | 
           <Icon name="chevron" size={26} />
         </button>
         <span className="np-eyebrow">{track.album ?? 'Now playing'}</span>
-        {/* balances the close button, keeping the album centred; becomes the
-            character cameo while actually playing, an empty spacer otherwise */}
-        {state.playing ? <CharacterCameo /> : <span style={{ width: 44 }} aria-hidden="true" />}
+        {/* balances the close button, keeping the album centred */}
+        <span style={{ width: 44 }} aria-hidden="true" />
       </div>
 
       {view === 'lyrics' ? (
@@ -163,9 +200,15 @@ export function NowPlaying({ onClose }: { onClose: () => void }): JSX.Element | 
         <Queue />
       ) : (
         <div className="np-art">
-          <Artwork src={track.artworkUrl} size="100%" alt={`Cover of ${track.title}`} radius={12} />
+          <Artwork src={track.artworkUrl} size="100%" alt={`Cover of ${track.title}`} radius={12} seed={track.id} />
         </div>
       )}
+
+      {/* a sibling of .np-art, not nested in it — .np-art's own overflow:hidden
+          would clip the cameo the moment it roams into the header or controls
+          strip above/below the square, which is the point: only while there's
+          a thumbnail to hop around (the art view), and only while playing. */}
+      {view === 'art' && state.playing ? <CharacterCameo /> : null}
 
       {/* Title and artist on the left, the round glass actions on the right —
           the reference player's meta row. */}
@@ -174,6 +217,7 @@ export function NowPlaying({ onClose }: { onClose: () => void }): JSX.Element | 
           <h2>{track.title}</h2>
           <p>{track.artist}</p>
         </div>
+        <LikeButton track={track} />
         <TrackMenu track={track} className="np-round" />
       </div>
 
@@ -201,8 +245,24 @@ export function NowPlaying({ onClose }: { onClose: () => void }): JSX.Element | 
 
       <Volume />
 
-      {/* The player's bottom action row: lyrics, Up Next, shuffle, repeat. */}
+      {/* The player's bottom action row: lyrics, Up Next, shuffle, repeat, and
+          the output-device switcher — Safari's native AirPlay picker where
+          available (canPickOutputDevice), this app's own device sheet on
+          Chrome/Android (canListOutputDevices) since there is no system
+          picker to call there. Hidden rather than dead with neither, same as
+          Volume. */}
       <div className="np-actions">
+        {player.canPickOutputDevice || player.canListOutputDevices ? (
+          <button
+            type="button"
+            className="np-toggle"
+            aria-label="Choose playback device"
+            onClick={() => (player.canPickOutputDevice ? player.showOutputPicker() : setDevicePicker(true))}
+          >
+            <Icon name="airplay" size={24} />
+          </button>
+        ) : null}
+
         <button
           type="button"
           className={view === 'lyrics' ? 'np-toggle on' : 'np-toggle'}
@@ -243,6 +303,8 @@ export function NowPlaying({ onClose }: { onClose: () => void }): JSX.Element | 
           <Icon name={state.repeat === 'one' ? 'repeat-1' : 'repeat'} size={24} />
         </button>
       </div>
+
+      {devicePicker ? <OutputDeviceSheet onClose={() => setDevicePicker(false)} /> : null}
     </div>
   )
 }

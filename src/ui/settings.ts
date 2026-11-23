@@ -23,3 +23,42 @@ export function setHideMiniWhenPaused(on: boolean): void {
     /* private mode — the toggle just will not stick */
   }
 }
+
+export type ThemeMode = 'system' | 'light' | 'dark'
+const THEME_KEY = 'settings:theme'
+/** Tap order for the topbar theme button. */
+export const NEXT_THEME: Record<ThemeMode, ThemeMode> = { system: 'light', light: 'dark', dark: 'system' }
+
+function loadTheme(): ThemeMode {
+  try {
+    const saved = localStorage.getItem(THEME_KEY)
+    return saved === 'light' || saved === 'dark' ? saved : 'system'
+  } catch {
+    return 'system'
+  }
+}
+
+function applyTheme(mode: ThemeMode): void {
+  if (mode === 'system') document.documentElement.removeAttribute('data-theme')
+  else document.documentElement.setAttribute('data-theme', mode)
+}
+
+export const theme: Store<ThemeMode> = createStore<ThemeMode>(loadTheme())
+
+/** Call once at boot, before the first paint — applies any saved override so
+ * there is no flash of the system theme first. Deferred out of module scope
+ * (rather than run on import) so importing this file stays safe in a DOM-less
+ * test environment. */
+export function initTheme(): void {
+  applyTheme(theme.get())
+}
+
+export function setTheme(mode: ThemeMode): void {
+  theme.set(mode)
+  applyTheme(mode)
+  try {
+    localStorage.setItem(THEME_KEY, mode)
+  } catch {
+    /* private mode — the choice just will not stick */
+  }
+}

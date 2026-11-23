@@ -14,3 +14,10 @@ dev-dist/
 
 # tsc -b artifact, regenerated on every build
 *.tsbuildinfo
+.env
+
+# Python bytecode cache — machine/version-specific, regenerated on run
+__pycache__/
+
+# local Claude Code agent state, not part of the app
+.claude/

@@ -1,25 +1,8 @@
-interface Env {
-  APP_ORIGIN?: string
+import { allowedOrigin, methodNotAllowed, type BaseEnv, type PagesContext } from '../_shared'
+
+interface Env extends BaseEnv {
   EXTRACTOR_URL?: string
   EXTRACTOR_TOKEN?: string
-}
-
-interface PagesContext {
-  request: Request
-  env: Env
-}
-
-// APP_ORIGIN can be a comma-separated list — dev often means more than one
-// (localhost plus whatever a port-forward or a phone-on-LAN actually shows up
-// as), and a single fixed value turned every one of those into a silent 403.
-function allowedOrigin(request: Request, env: Env): string | null {
-  const configured = (env.APP_ORIGIN ?? '').split(',').map((o) => o.trim()).filter(Boolean)
-  if (configured.length === 0) return null
-  const requestOrigin = new URL(request.url).origin
-  if (!configured.includes(requestOrigin)) return null
-  const headerOrigin = request.headers.get('Origin')
-  if (headerOrigin && !configured.includes(headerOrigin)) return null
-  return requestOrigin
 }
 
 /**
@@ -29,7 +12,7 @@ function allowedOrigin(request: Request, env: Env): string | null {
  * browser, and so the audio is same-origin — which is what lets the download
  * queue read it as a Blob.
  */
-export async function onRequestGet({ request, env }: PagesContext): Promise<Response> {
+export async function onRequestGet({ request, env }: PagesContext<Env>): Promise<Response> {
   const origin = allowedOrigin(request, env)
   if (!origin) return Response.json({ error: 'YouTube audio is not configured for this origin.' }, { status: 403 })
 
@@ -78,6 +61,4 @@ export async function onRequestGet({ request, env }: PagesContext): Promise<Resp
   return new Response(upstream.body, { status: upstream.status, headers: out })
 }
 
-export function onRequest(): Response {
-  return Response.json({ error: 'Method is not allowed.' }, { status: 405, headers: { Allow: 'GET' } })
-}
+export const onRequest = methodNotAllowed

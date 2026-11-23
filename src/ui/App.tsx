@@ -31,7 +31,7 @@ export function App(): JSX.Element {
   return (
     <div className={hasMini ? 'app has-mini' : 'app'}>
       <main className="screen">
-        {tab === 'library' ? <Library onPlay={onPlay} /> : null}
+        {tab === 'library' ? <Library onPlay={onPlay} onOpenSettings={() => setTab('settings')} /> : null}
         {tab === 'search' ? <Search onPlay={onPlay} /> : null}
         {tab === 'radio' ? <Radio onPlay={onPlay} /> : null}
         {tab === 'playlists' ? <Playlists onPlay={onPlay} /> : null}

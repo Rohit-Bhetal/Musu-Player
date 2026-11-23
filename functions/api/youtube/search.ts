@@ -1,5 +1,6 @@
-interface Env {
-  APP_ORIGIN?: string
+import { allowedOrigin, jsonResponse, methodNotAllowed, type BaseEnv } from '../_shared'
+
+interface Env extends BaseEnv {
   YOUTUBE_API_KEY?: string
   /** Comma-separated countries for Home's chart rows, e.g. "IN,US,GB,KR".
    * Unset means the listener's own country followed by CHART_REGION_DEFAULTS. */
@@ -59,21 +60,6 @@ interface YouTubeVideo {
   thumbnailUrl?: string
 }
 
-function jsonResponse(body: unknown, status: number, origin: string, maxAge = 60, shared = false): Response {
-  return Response.json(body, {
-    status,
-    headers: {
-      'Access-Control-Allow-Origin': origin,
-      // The chart is the same response for every visitor in a region set, so
-      // it is the one response here Cloudflare's edge is allowed to share —
-      // `private` on it meant every single listener re-paid the 6-country,
-      // 6-quota-unit fan-out that the very first one had already settled.
-      'Cache-Control': shared ? `public, s-maxage=${maxAge}, max-age=60` : `private, max-age=${maxAge}`,
-      Vary: 'Origin',
-    },
-  })
-}
-
 /** Charts move once a day, so Home costs nothing to revisit. */
 const CHART_MAX_AGE = 1800
 
@@ -120,23 +106,8 @@ function chartUrl(region: string, key: string): URL {
   return url
 }
 
-// APP_ORIGIN can be a comma-separated list — dev often means more than one
-// (localhost plus whatever a port-forward or a phone-on-LAN actually shows up
-// as), and a single fixed value turned every one of those into a silent 403.
-function getAllowedOrigin(request: Request, env: Env): string | null {
-  const configured = (env.APP_ORIGIN ?? '').split(',').map((o) => o.trim()).filter(Boolean)
-  if (configured.length === 0) return null
-
-  const requestOrigin = new URL(request.url).origin
-  if (!configured.includes(requestOrigin)) return null
-  const headerOrigin = request.headers.get('Origin')
-  if (headerOrigin && !configured.includes(headerOrigin)) return null
-
-  return requestOrigin
-}
-
 export async function onRequestGet({ request, env }: PagesContext): Promise<Response> {
-  const origin = getAllowedOrigin(request, env)
+  const origin = allowedOrigin(request, env)
   if (!origin) return Response.json({ error: 'YouTube search is not configured for this origin.' }, { status: 403 })
 
   const params = new URL(request.url).searchParams
@@ -193,6 +164,4 @@ export async function onRequestGet({ request, env }: PagesContext): Promise<Resp
   }
 }
 
-export function onRequest(): Response {
-  return Response.json({ error: 'Method is not allowed.' }, { status: 405, headers: { Allow: 'GET' } })
-}
+export const onRequest = methodNotAllowed

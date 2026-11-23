@@ -1,5 +1,5 @@
 import type { JSX } from 'react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Track } from '../source/MusicSource'
 import { player } from '../player'
 import { activeLine, parseLyrics, type LyricLine } from '../lyrics/lrc'
@@ -50,6 +50,30 @@ export function Lyrics({ track }: { track: Track }): JSX.Element {
     activeRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [current])
 
+  // `current` only changes at line boundaries, not every progress tick —
+  // without this, playback re-renders every lyric line ~4x/sec for nothing.
+  // Computed before the early returns below: hooks must run unconditionally
+  // on every render, or React throws once `loading`/`lines` change and this
+  // call starts/stops happening — which is exactly what blanked the screen.
+  const rows = useMemo(
+    () =>
+      (lines ?? []).map((line, i) => (
+        <button
+          key={`${line.timeSec ?? 'x'}-${i}`}
+          type="button"
+          ref={i === current ? activeRef : undefined}
+          className={i === current ? 'lyric on' : 'lyric'}
+          // Untimed plain lyrics have nowhere to seek to.
+          disabled={line.timeSec === null}
+          aria-current={i === current ? 'true' : undefined}
+          onClick={() => line.timeSec !== null && player.seekTo(line.timeSec)}
+        >
+          {line.text}
+        </button>
+      )),
+    [lines, current],
+  )
+
   if (loading) return <p className="lyrics-note">Looking for lyrics…</p>
   if (!lines || lines.length === 0) return <p className="lyrics-note">No lyrics for this song.</p>
 
@@ -63,20 +87,7 @@ export function Lyrics({ track }: { track: Track }): JSX.Element {
         pausedUntil.current = Date.now() + SCROLL_PAUSE_MS
       }}
     >
-      {lines.map((line, i) => (
-        <button
-          key={`${line.timeSec ?? 'x'}-${i}`}
-          type="button"
-          ref={i === current ? activeRef : undefined}
-          className={i === current ? 'lyric on' : 'lyric'}
-          // Untimed plain lyrics have nowhere to seek to.
-          disabled={line.timeSec === null}
-          aria-current={i === current ? 'true' : undefined}
-          onClick={() => line.timeSec !== null && player.seekTo(line.timeSec)}
-        >
-          {line.text}
-        </button>
-      ))}
+      {rows}
       {!timed ? <p className="lyrics-note">Unsynced lyrics — tapping a line cannot seek.</p> : null}
     </div>
   )

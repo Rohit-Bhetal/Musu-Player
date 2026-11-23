@@ -8,6 +8,7 @@ origin it controls, which is what makes a YouTube track downloadable offline.
 Only ever reachable through the app's Pages Function, which holds EXTRACTOR_TOKEN.
 """
 
+import hmac
 import os
 import re
 import threading
@@ -69,10 +70,16 @@ def chunks(start: int, end: int, size: int = CHUNK_BYTES) -> list[tuple[int, int
 
 
 def resolve(video_id: str) -> str:
+    now = time.time()
     with _lock:
         hit = _cache.get(video_id)
-        if hit and hit["expiry"] > time.time():
+        if hit and hit["expiry"] > now:
             return hit["url"]
+        # A video resolved once and never replayed otherwise sits here
+        # forever — this is the only other place an entry's fate is decided,
+        # so it is also where stale ones get swept.
+        for key in [k for k, v in _cache.items() if v["expiry"] <= now]:
+            del _cache[key]
 
     from yt_dlp import YoutubeDL  # imported late so this module loads without it
 
@@ -135,7 +142,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler's name
-        if TOKEN and self.headers.get("Authorization") != f"Bearer {TOKEN}":
+        # compare_digest, not !=, so a wrong guess takes the same time
+        # regardless of how many leading characters happened to match.
+        if TOKEN and not hmac.compare_digest(self.headers.get("Authorization", ""), f"Bearer {TOKEN}"):
             return self._fail(403, "forbidden")
 
         if self.path.startswith("/health"):

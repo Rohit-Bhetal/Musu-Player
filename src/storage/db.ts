@@ -28,6 +28,9 @@ export interface Playlist {
   id: string
   name: string
   trackIds: string[]
+  /** Set on every mutation; absent on a playlist saved before cloud sync
+   * existed. Lets a cloud merge tell which copy of the same playlist is newer. */
+  updatedAt?: number
 }
 
 export interface HistoryRecord {
@@ -138,6 +141,16 @@ export async function idbClear(store: StoreName): Promise<void> {
 
 export const saveTrack = (track: Track): Promise<void> => idbPut('tracks', track)
 export const getTrack = (id: string): Promise<Track | undefined> => idbGet<Track>('tracks', id)
+
+/** One transaction over the whole store, not one idbGet per track — shared by
+ * every screen that resolves a list of ids back into tracks (downloads,
+ * playlists, the queue). */
+export async function getTracksByIds(ids: readonly string[]): Promise<Track[]> {
+  if (ids.length === 0) return []
+  const all = await idbGetAll<Track>('tracks').catch(() => [])
+  const byId = new Map(all.map((t) => [t.id, t]))
+  return ids.map((id) => byId.get(id)).filter((t): t is Track => Boolean(t))
+}
 export const getLyrics = (trackId: string): Promise<Lyrics | undefined> => idbGet<Lyrics>('lyrics', trackId)
 export const saveLyrics = (trackId: string, lyrics: Lyrics): Promise<void> =>
   idbPut('lyrics', { trackId, ...lyrics })

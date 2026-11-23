@@ -32,11 +32,12 @@
   --fill-3: #7676801e; /* tertiarySystemFill */
   --danger: #ff3b30; /* systemRed */
 
-  /* Brand accent. --accent fills controls; --accent-text is the same hue
-     pushed to a readable lightness, exactly the split Convx draws between
-     LocalAccentColor and LocalAccentTextColor (accentTextColor()). */
-  --accent: #9b14f5;
-  --accent-text: #61079d; /* hsl(276 92% 32%) — the on-light clamp */
+  /* Brand accent — the logo's own pink (hsl(334 89% 60%), sampled from
+     assets/logo.png). --accent fills controls; --accent-text is the same
+     hue pushed to a readable lightness, exactly the split Convx draws
+     between LocalAccentColor and LocalAccentTextColor (accentTextColor()). */
+  --accent: #f43e8d;
+  --accent-text: #c10b5a; /* hsl(334 89% 40%) — the on-light clamp */
   --on-accent: #ffffff;
 
   --skeleton: #7878801f;
@@ -99,8 +100,15 @@
   --dock-h: calc(68px + 8px + env(safe-area-inset-bottom));
 }
 
+/* Settings > Theme (src/ui/theme.ts) can force light or dark via a
+   data-theme attribute on <html>; "System" (the default, no attribute) falls
+   through to this media query. :not([data-theme="light"]) lets an explicit
+   light override win even when the OS itself is in dark mode, and the
+   standalone :root[data-theme="dark"] block below repeats the same values so
+   an explicit dark override wins even when the OS is in light mode — the
+   same tokens, just reachable from both directions. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     /* ConvxDesignTokens.Colors + IosColors.darkIosColors() */
     --bg: #121212; /* Colors.Background — soft dark grey, not pure black */
     --surface: #1c1c1e; /* Colors.Card / systemGray6 */
@@ -115,8 +123,8 @@
     --fill-3: #7676803d;
     --danger: #ff453a; /* systemRed, dark */
 
-    --accent: #9b14f5;
-    --accent-text: #c576f9; /* hsl(276 92% 72%) — the on-dark clamp */
+    --accent: #f43e8d;
+    --accent-text: #f99fc6; /* hsl(334 89% 80%) — the on-dark clamp */
 
     --skeleton: #ebebf51f;
     /* NavBarSaturationDark = 1.70. */
@@ -130,7 +138,38 @@
     --glass-shadow: 0 8px 24px #00000059;
     --glass-border: #ffffff1f; /* dark hairline rgba(255,255,255,0.12) */
     --puck: #ffffff1a;
+    color-scheme: dark;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #121212;
+  --surface: #1c1c1e;
+  --surface-2: #2c2c2e;
+  --surface-3: #1a1a1a;
+  --text: #ffffff;
+  --muted: #ebebf5b3;
+  --faint: #ebebf54d;
+  --border: #54545899;
+  --fill: #7878805c;
+  --fill-2: #78788052;
+  --fill-3: #7676803d;
+  --danger: #ff453a;
+  --accent: #f43e8d;
+  --accent-text: #f99fc6;
+  --skeleton: #ebebf51f;
+  --blur: saturate(170%) blur(20px);
+  --glass: color-mix(in srgb, #ffffff 15%, #1c1c1e8c);
+  --glass-strong: color-mix(in srgb, #ffffff 15%, #1c1c1ed9);
+  --glass-hi: #ffffff4d;
+  --glass-shadow: 0 8px 24px #00000059;
+  --glass-border: #ffffff1f;
+  --puck: #ffffff1a;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
 }
 
 * {
@@ -195,6 +234,11 @@ input {
   --pad-l: max(env(safe-area-inset-left), var(--gutter-x), var(--gutter));
   --pad-r: max(env(safe-area-inset-right), var(--gutter-x), var(--gutter));
   padding-inline: var(--pad-l) var(--pad-r);
+  /* No max-width here on purpose: a 980px cap turned every tab into a
+     phone-width column floating in the middle of a desktop window, which is
+     the wide layout people expect from this app. Width-sensitive pieces
+     (.chart-grid, the hero strips) adapt on their own instead. */
+  width: 100%;
 }
 
 /* Convx's bottom chrome floats clear of the screen edge and content scrolls
@@ -231,10 +275,13 @@ h1 {
   margin: 2px 0 var(--item-gap);
 }
 
-/* AppleTokens.SectionHeader, 22/28. */
+/* One rung above AppleTokens.SectionHeader (22/28) — a deliberate "little
+   bigger" bump, not a token swap: Title1 (28/34) exists but compresses the
+   h1:h2 ratio from 1.55x to 1.21x and starts blurring the greeting/section
+   distinction, so this sits between the two pinned tokens instead. */
 h2 {
-  font-size: 22px;
-  line-height: 28px;
+  font-size: 24px;
+  line-height: 30px;
   font-weight: 700;
   letter-spacing: 0.35px;
   margin: var(--section-gap) 0 10px;
@@ -266,15 +313,26 @@ h2 {
 
 /* Flat glyph in a quiet accent-tinted disc — minimal, theme-aware, no gradient
    and no white-disc backing hack the old raster logo needed to stay legible. */
+/* The real logo (public/icons/logo-128.png) is served at its natural 128px —
+   an <img> with no explicit size renders at that intrinsic size regardless of
+   its container, so without this it overflowed the 22px topbar slot hugely.
+   border-radius + overflow clip it as a second guarantee: the asset is
+   already a circular transparent-cornered mark, but this holds even if a
+   future logo isn't. No background/color needed any more either — that tint
+   disc was for the old flat generic glyph this image replaced. */
 .brand-mark {
   width: 22px;
   height: 22px;
   flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  display: block;
+  overflow: hidden;
   border-radius: 50%;
+}
+
+.brand-mark img {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .brand-name {
@@ -284,6 +342,9 @@ h2 {
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--muted);
+  /* RESPONSIVE ADDITION: never let the wordmark wrap and push the topbar past
+     its 22px row height on a 320px screen. */
+  white-space: nowrap;
 }
 
 /* a little flipbook beside the title, a frame every 2.6s, bobbing in between
@@ -292,6 +353,11 @@ h2 {
   font-size: 13px;
   color: var(--muted);
   white-space: nowrap;
+  /* RESPONSIVE ADDITION: the only variable-width item in the topbar, and some
+     frames are much wider than others — let it clip rather than push the status
+     dot and avatar off a 320px screen. */
+  min-width: 0;
+  overflow: hidden;
 }
 
 .mascot-frame {
@@ -318,18 +384,11 @@ h2 {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .mascot-frame {
-    animation: none;
-  }
-}
-
 /* small dot on the right of the topbar: green online, red offline */
 .status-pill {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  margin-left: auto;
   flex: 0 0 auto;
   background: var(--danger);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
@@ -338,6 +397,54 @@ h2 {
 .status-pill.online {
   background: #34c759; /* iOS systemGreen, both themes */
   box-shadow: 0 0 0 3px color-mix(in srgb, #34c759 18%, transparent);
+}
+
+/* Theme toggle is first in the topbar's right-aligned utility cluster — its
+   margin-left: auto is what pushes itself, the status dot and the avatar to
+   the topbar's end as a group; a real 44px tap target via ::before, without
+   growing the 22px row everything else in the topbar is sized to. */
+.theme-toggle {
+  position: relative;
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.theme-toggle::before {
+  content: '';
+  position: absolute;
+  inset: -11px;
+}
+
+.theme-toggle:active {
+  color: var(--accent-text);
+}
+
+/* The one indicator that cloud backup is signed in — blank (unrendered)
+   otherwise, not a sign-in prompt here. Tucked beside the status dot, in the
+   same right-aligned cluster the theme toggle's margin-left: auto starts. */
+.account-avatar {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.account-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* ----------------------------------------------- section header + chevron -- */
@@ -673,6 +780,85 @@ h2 {
 
 /* ------------------------------------------------------- hero carousel -- */
 
+/* The one bold, "Committed" surface on an otherwise restrained Home — colour
+   is --fh-a, set inline from the featured track's own artwork (Library.tsx's
+   FeaturedHero), not an arbitrary decorative gradient, so it is earned rather
+   than applied. Falls back to the theme accent before the tint resolves. */
+.featured-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--r-card-lg);
+  padding: 20px;
+  min-height: 150px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  margin-bottom: var(--section-gap);
+  background: linear-gradient(135deg, var(--fh-a, var(--accent)), color-mix(in srgb, var(--fh-a, var(--accent)) 55%, #000));
+  color: #fff;
+}
+
+/* a quiet porthole cutout, same trick as the reference card — decorative,
+   never meaningful, so it stays out of the accessibility tree */
+.featured-hero::after {
+  content: '';
+  position: absolute;
+  right: -30px;
+  top: 16px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 14px solid #ffffff26;
+  pointer-events: none;
+}
+
+.featured-hero-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #ffffffb3;
+}
+
+.featured-hero-title {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  /* RESPONSIVE ADDITION: keep clear of the ::after porthole by its real size,
+     not by a percentage. The circle sits 30px off the right edge and is 120px
+     wide, so it eats 90px of the padding box minus the 20px padding = 70px of
+     the content box, at any width. 75% under-cleared it at 320px (60px) and
+     threw away ~300px of usable title width on a 980px column. */
+  max-width: calc(100% - 80px);
+  margin: 2px 0 0;
+}
+
+.featured-hero-sub {
+  /* RESPONSIVE ADDITION: same porthole clearance as the title above. */
+  max-width: calc(100% - 80px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: #ffffffcc;
+  margin: 2px 0 14px;
+}
+
+.featured-hero-btn {
+  align-self: flex-start;
+  background: #fff;
+  color: #111;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 9px 22px;
+  border-radius: 18px;
+  transition: transform var(--dur-fade) var(--ease-snappy);
+}
+
+.featured-hero-btn:active {
+  transform: scale(0.94);
+}
+
 /* FigmaTopPickCard's rail: 16dp content padding, 10dp between cards.
    Neighbours deliberately peek at both edges — that is what makes it read as
    a carousel rather than a list. */
@@ -767,6 +953,21 @@ h2 {
   text-shadow: 0 1px 3px #00000059;
 }
 
+/* The rest of a chart beyond its first 3 (HeroCard) tracks — a denser
+   2-column grid of real-thumbnail rows (TrackRow, the same "small art + text"
+   list idiom .row already uses elsewhere) rather than a 20-item vertical wall
+   of identical cards, gradient or otherwise. */
+.chart-grid {
+  display: grid;
+  /* RESPONSIVE ADDITION: column count follows the width instead of being pinned
+     at 2. 260px is the narrowest a TrackRow stays readable (48 art + 10 gap +
+     ~200 text). auto-fill, not auto-fit: a row with only 2 tracks left over
+     keeps phone-width columns on a wide screen rather than stretching two rows
+     across the whole column. */
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 4px var(--item-gap);
+}
+
 /* ------------------------------------------------------------ search --- */
 
 /* one pill holding the magnifier, the field and the clear button, so the bar
@@ -830,12 +1031,6 @@ h2 {
 
 .search-form {
   margin-bottom: 12px;
-}
-
-.search-provider-error {
-  margin: 8px 0;
-  color: var(--muted);
-  font-size: 13px;
 }
 
 /* ---------------------------------------------------------- settings --- */
@@ -1057,7 +1252,9 @@ h2 {
     --np-y: clamp(16px, 6vh, 56px);
     padding: calc(var(--np-y) + 16px) calc(var(--np-x) + 22px);
     background: #00000073;
-    animation-name: np-fade;
+    /* a viewport-covering scrim sliding up looks wrong — fade instead,
+       reusing the sheet's own fade-in since the two are identical */
+    animation-name: sheet-fade;
   }
 
   .nowplaying::before {
@@ -1075,13 +1272,6 @@ h2 {
     inset: var(--np-y) var(--np-x);
     z-index: -1;
     border-radius: 28px;
-  }
-}
-
-/* RESPONSIVE: a viewport-covering scrim sliding up looks wrong — fade instead */
-@keyframes np-fade {
-  from {
-    opacity: 0;
   }
 }
 
@@ -1130,17 +1320,25 @@ h2 {
   color: var(--np-ink-2);
 }
 
-/* a little character peeking from the header while a song plays — a square,
-   same scale as the close button and every other round icon badge in this
-   header, rather than a sliver shaped for one no-longer-used sprite sheet. */
+/* a little character hopping around the margin outside the cover art — never
+   over the square itself, see NowPlaying.tsx's marginBands(). Positioned
+   against .nowplaying (the nearest `position` ancestor now that it is a
+   sibling of .np-art, not nested in it), so it can roam into the header or
+   controls strip above/below the square. Decorative: pointer-events stay off
+   so a tap on whatever it is currently over is never intercepted. Same scale
+   as the close button and every other round icon badge in this screen. No
+   background fill: a tint box blended in against the header this used to sit
+   in, but shows up as a flat square edge against the busy artwork or screen
+   background it can now roam over instead. */
 .np-cameo {
-  flex: 0 0 auto;
+  position: absolute;
   display: block;
   width: 44px;
   height: 44px;
   overflow: hidden;
   border-radius: 12px;
-  background: var(--np-fill);
+  pointer-events: none;
+  transition: top 0.4s ease, left 0.4s ease;
 }
 
 .np-cameo-frame {
@@ -1150,9 +1348,7 @@ h2 {
   /* `contain`, not `cover`: the sprite-sheet cells are the one asset actually
      cut to this box's 280:429.5 ratio. Every standalone image (square cat-ear
      portraits, a landscape potato) is a completely different shape — `cover`
-     was cropping off ears, hands and most of the potato to force-fill the
-     box. `contain` shows the whole character, letterboxed into the tinted
-     fill behind it, which a transparent-background asset hides seamlessly. */
+     was cropping off ears, hands and most of the potato to force-fill the box. */
   object-fit: contain;
   background-repeat: no-repeat;
   animation: mascot-in 0.4s ease-out;
@@ -1245,6 +1441,13 @@ h2 {
   transform: scale(0.92);
 }
 
+/* Liked state reuses the theme accent (the logo's own colour) rather than
+   introducing a one-off red — same hue the rest of the app already means
+   "this is the one highlighted thing". */
+.np-round .liked {
+  color: var(--accent);
+}
+
 /* Cupertino scrubber: a thin capsule track with no knob at rest. Styling the
    range costs the free `accent-color` fill, so the played part is a gradient on
    the input itself — which also keeps a sane bar in engines that ignore the
@@ -1256,25 +1459,35 @@ h2 {
   margin-top: 4px;
 }
 
+/* height:7px is the visible track; the 48px touch target comes from padding,
+   not a taller box — a taller box with a small background-size patch inside
+   it (the previous approach) puts border-radius's corners nowhere near the
+   patch's own edges, so the "rounded" bar renders square wherever a browser
+   actually paints this background instead of the ::-webkit-slider-runnable-
+   track override below. background-clip: content-box plus content-box sizing
+   (overriding the global border-box reset) means the radius clips the 7px
+   patch itself. */
 .scrub input[type='range'] {
   display: block;
+  box-sizing: content-box;
   width: 100%;
-  height: 48px; /* Slider requiredHeight — the touch target, not the track */
+  height: 7px;
+  padding-block: 20.5px; /* Slider requiredHeight 48px total, same as before */
   appearance: none;
   -webkit-appearance: none;
   background: linear-gradient(
-      to right,
-      var(--np-ink) calc(var(--p, 0) * 100%),
-      color-mix(in srgb, var(--np-ink) 30%, transparent) 0
-    )
-    center / 100% 7px no-repeat;
-  border-radius: 4px;
+    to right,
+    var(--np-ink) calc(var(--p, 0) * 100%),
+    color-mix(in srgb, var(--np-ink) 30%, transparent) 0
+  );
+  background-clip: content-box;
+  border-radius: 999px;
 }
 
 /* same gradient again, but on the track, which can take the capsule radius */
 .scrub input[type='range']::-webkit-slider-runnable-track {
   height: 7px;
-  border-radius: 4px;
+  border-radius: 999px;
   background: linear-gradient(
     to right,
     var(--np-ink) calc(var(--p, 0) * 100%),
@@ -1282,8 +1495,9 @@ h2 {
   );
 }
 
-/* No knob at rest, as in the reference — but a keyboard user needs to see
-   what they are moving, so focus brings one back. */
+/* A visible handle, not just a flat fill — grown slightly on grab for
+   feedback. box-shadow keeps it readable where it overlaps the filled
+   (same-colour) half of the track. */
 .scrub input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   margin-top: -4px;
@@ -1291,13 +1505,12 @@ h2 {
   height: 13px;
   border-radius: 7px;
   background: var(--np-ink);
-  opacity: 0;
-  transition: opacity var(--dur-fade) ease-in-out;
+  box-shadow: 0 1px 4px #00000040;
+  transition: transform var(--dur-fade) var(--ease-snappy);
 }
 
-.scrub input[type='range']:focus-visible::-webkit-slider-thumb,
 .scrub input[type='range']:active::-webkit-slider-thumb {
-  opacity: 1;
+  transform: scale(1.15);
 }
 
 /* Gecko paints its own track over the input background, so the same two-tier
@@ -1306,28 +1519,25 @@ h2 {
 .scrub input[type='range']::-moz-range-track,
 .np-volume input[type='range']::-moz-range-track {
   height: 7px;
-  border-radius: 4px;
+  border-radius: 999px;
   background: color-mix(in srgb, var(--np-ink) 30%, transparent);
 }
 
 .np-volume input[type='range']::-moz-range-track {
   height: 10px;
-  border-radius: 5px;
 }
 
 .scrub input[type='range']::-moz-range-progress,
 .np-volume input[type='range']::-moz-range-progress {
   height: 7px;
-  border-radius: 4px;
+  border-radius: 999px;
   background: var(--np-ink);
 }
 
 .np-volume input[type='range']::-moz-range-progress {
   height: 10px;
-  border-radius: 5px;
 }
 
-/* No knob at rest, as in the reference — focus brings it back for keyboards. */
 .scrub input[type='range']::-moz-range-thumb,
 .np-volume input[type='range']::-moz-range-thumb {
   width: 13px;
@@ -1335,15 +1545,13 @@ h2 {
   border: 0;
   border-radius: 7px;
   background: var(--np-ink);
-  opacity: 0;
-  transition: opacity var(--dur-fade) ease-in-out;
+  box-shadow: 0 1px 4px #00000040;
+  transition: transform var(--dur-fade) var(--ease-snappy);
 }
 
-.scrub input[type='range']:focus-visible::-moz-range-thumb,
 .scrub input[type='range']:active::-moz-range-thumb,
-.np-volume input[type='range']:focus-visible::-moz-range-thumb,
 .np-volume input[type='range']:active::-moz-range-thumb {
-  opacity: 1;
+  transform: scale(1.15);
 }
 
 .scrub input[type='range']:disabled {
@@ -1422,23 +1630,28 @@ h2 {
   color: var(--np-ink-2);
 }
 
+/* height:10px is the visible track; the 44px touch target comes from
+   padding, not a taller box — see the matching comment on .scrub above for
+   why that distinction is what actually makes the bar look rounded. */
 .np-volume input[type='range'] {
   flex: 1 1 auto;
-  height: 44px;
+  box-sizing: content-box;
+  height: 10px;
+  padding-block: 17px; /* 44px touch target total, same as before */
   appearance: none;
   -webkit-appearance: none;
   background: linear-gradient(
-      to right,
-      var(--np-ink) calc(var(--v, 1) * 100%),
-      color-mix(in srgb, var(--np-ink) 30%, transparent) 0
-    )
-    center / 100% 10px no-repeat;
-  border-radius: 5px;
+    to right,
+    var(--np-ink) calc(var(--v, 1) * 100%),
+    color-mix(in srgb, var(--np-ink) 30%, transparent) 0
+  );
+  background-clip: content-box;
+  border-radius: 999px;
 }
 
 .np-volume input[type='range']::-webkit-slider-runnable-track {
   height: 10px;
-  border-radius: 5px;
+  border-radius: 999px;
   background: linear-gradient(
     to right,
     var(--np-ink) calc(var(--v, 1) * 100%),
@@ -1453,13 +1666,12 @@ h2 {
   height: 13px;
   border-radius: 7px;
   background: var(--np-ink);
-  opacity: 0;
-  transition: opacity var(--dur-fade) ease-in-out;
+  box-shadow: 0 1px 4px #00000040;
+  transition: transform var(--dur-fade) var(--ease-snappy);
 }
 
-.np-volume input[type='range']:focus-visible::-webkit-slider-thumb,
 .np-volume input[type='range']:active::-webkit-slider-thumb {
-  opacity: 1;
+  transform: scale(1.15);
 }
 
 /* The player's bottom action row — three evenly spread glyph toggles. */
@@ -1857,15 +2069,18 @@ h2 {
 
 /* ---------------------------------------------------------- skeleton --- */
 
-/* Ambient Chromatics: a slow brand-tinted gradient drifting across every
-   loading surface, instead of a flat grey block — the "soft-focus lens, not
-   neon" treatment 2026's loading-UI trend pieces converge on. One keyframe,
-   reused at two speeds: fast-ish for thin text bars, slow for big artwork. */
+/* A quiet sheen drifting across every loading surface, instead of an empty
+   grey block — the motion alone signals "loading"; it doesn't need the brand
+   accent colour mixed in too, which read as a flourish rather than a calm
+   loading state. --glass-hi is the same neutral highlight this design system
+   already uses for glass insets elsewhere, reused here instead of inventing a
+   new one. One keyframe, reused at two speeds: fast-ish for thin text bars,
+   slow for big artwork. */
 .skeleton {
   background: linear-gradient(
     100deg,
     var(--skeleton) 15%,
-    color-mix(in srgb, var(--accent) 18%, var(--skeleton)) 45%,
+    color-mix(in srgb, var(--glass-hi) 45%, var(--skeleton)) 45%,
     var(--skeleton) 75%
   );
   background-size: 260% 100%;
@@ -1876,7 +2091,7 @@ h2 {
 /* matches h2: same height and the same rhythm, so the real titles land
    exactly where the placeholders were */
 .skeleton-title {
-  height: 22px;
+  height: 30px;
   margin: var(--section-gap) 0 10px;
   border-radius: 6px;
 }
@@ -1897,18 +2112,18 @@ h2 {
 }
 
 /* The loading state is the brand mark: every placeholder artwork holds the
-   logo fading in and out over the same drifting gradient, instead of an empty
-   grey block. One image, already precached and already decoded by the time
-   the second placeholder paints. */
+   logo fading in and out over the same quiet sheen, instead of an empty grey
+   block. One image, already precached and already decoded by the time the
+   second placeholder paints. */
 .skel-art {
   position: relative;
   flex: 0 0 auto;
   background: linear-gradient(
     135deg,
     var(--skeleton) 0%,
-    color-mix(in srgb, var(--accent) 16%, var(--skeleton)) 32%,
+    color-mix(in srgb, var(--glass-hi) 40%, var(--skeleton)) 32%,
     var(--skeleton) 58%,
-    color-mix(in srgb, var(--accent) 12%, var(--skeleton)) 82%,
+    color-mix(in srgb, var(--glass-hi) 30%, var(--skeleton)) 82%,
     var(--skeleton) 100%
   );
   background-size: 240% 240%;
@@ -1925,11 +2140,6 @@ h2 {
      still reads at 48px in a list row */
   background: url('/icons/logo-128.png') center / min(42%, 52px) no-repeat;
   animation: logo-fade 2.8s var(--ease-smooth) infinite;
-}
-
-/* the placeholder hero card's caption strip, which has no artwork to mirror */
-.hero-cap.skel-cap {
-  background: var(--skeleton);
 }
 
 /* fade in, hold, fade out — the logo is the loading indicator, not a watermark

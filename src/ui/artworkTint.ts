@@ -9,8 +9,10 @@
  * flat white pasted on top of it.
  *
  * Pure maths over a pixel array, so it is unit-testable without a browser —
- * only `tintFor` needs a DOM.
+ * only `tintFor` (and the `useArtworkTint` hook around it) needs a DOM.
  */
+
+import { useEffect, useState } from 'react'
 
 export interface Tint {
   /** Flat page background: the artwork's own colour, darkened by luminance. */
@@ -210,4 +212,23 @@ export async function tintFor(url: string | null | undefined): Promise<Tint | nu
 
   cache.set(url, result)
   return result
+}
+
+/**
+ * The cover's own colours, for a screen that wants to paint itself from them.
+ * Null until the extraction finishes, and permanently null for a cross-origin
+ * image that taints the canvas — in both cases the caller keeps its own
+ * fallback palette.
+ */
+export function useArtworkTint(artworkUrl: string | null | undefined): Tint | null {
+  const [tint, setTint] = useState<Tint | null>(null)
+  useEffect(() => {
+    let live = true
+    setTint(null)
+    void tintFor(artworkUrl).then((found) => live && setTint(found))
+    return () => {
+      live = false
+    }
+  }, [artworkUrl])
+  return tint
 }

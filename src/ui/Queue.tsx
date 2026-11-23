@@ -2,7 +2,7 @@ import type { JSX } from 'react'
 import { player } from '../player'
 import { upcomingOf } from '../player/PlayerEngine'
 import { useStore } from './store'
-import { TrackRow } from './TrackRow'
+import { ReorderButtons, TrackRow } from './TrackRow'
 import { Icon } from './Icon'
 
 /** "Up Next" — everything still ahead of the playhead, reorderable and
@@ -25,26 +25,13 @@ export function Queue(): JSX.Element {
           onSelect={() => void player.playFromQueue(orderPos)}
           right={
             <>
-              <button
-                type="button"
-                className="row-action"
-                disabled={i === 0}
-                aria-label={`Move ${track.title} up`}
-                onClick={() => player.moveInQueue(orderPos, orderPos - 1)}
-              >
-                <span style={{ display: 'inline-flex', transform: 'rotate(180deg)' }}>
-                  <Icon name="chevron" size={18} />
-                </span>
-              </button>
-              <button
-                type="button"
-                className="row-action"
-                disabled={i === upcoming.length - 1}
-                aria-label={`Move ${track.title} down`}
-                onClick={() => player.moveInQueue(orderPos, orderPos + 1)}
-              >
-                <Icon name="chevron" size={18} />
-              </button>
+              <ReorderButtons
+                label={track.title}
+                disabledUp={i === 0}
+                disabledDown={i === upcoming.length - 1}
+                onUp={() => player.moveInQueue(orderPos, orderPos - 1)}
+                onDown={() => player.moveInQueue(orderPos, orderPos + 1)}
+              />
               <button
                 type="button"
                 className="row-action"

@@ -1,13 +1,9 @@
-interface Env {
-  APP_ORIGIN?: string
+import { allowedOrigin, jsonResponse as sharedJsonResponse, methodNotAllowed, type BaseEnv, type PagesContext } from './_shared'
+
+interface Env extends BaseEnv {
   /** A self-hosted Lyrica instance (github.com/Wilooper/Lyrica) — optional.
    * Unset means this route always 503s and apiSource falls back to LRCLIB. */
   LYRICA_URL?: string
-}
-
-interface PagesContext {
-  request: Request
-  env: Env
 }
 
 interface LyricaTimedLine {
@@ -24,24 +20,10 @@ interface LyricaResponse {
   }
 }
 
-// APP_ORIGIN can be a comma-separated list — dev often means more than one
-// (localhost plus whatever a port-forward or a phone-on-LAN actually shows up
-// as), and a single fixed value turned every one of those into a silent 403.
-function getAllowedOrigin(request: Request, env: Env): string | null {
-  const configured = (env.APP_ORIGIN ?? '').split(',').map((o) => o.trim()).filter(Boolean)
-  if (configured.length === 0) return null
-  const requestOrigin = new URL(request.url).origin
-  if (!configured.includes(requestOrigin)) return null
-  const headerOrigin = request.headers.get('Origin')
-  if (headerOrigin && !configured.includes(headerOrigin)) return null
-  return requestOrigin
-}
-
+// Lyrica responses are cached for an hour regardless of outcome — identical
+// for a given artist/song, so there is no reason to ask it again sooner.
 function jsonResponse(body: unknown, status: number, origin: string): Response {
-  return Response.json(body, {
-    status,
-    headers: { 'Access-Control-Allow-Origin': origin, 'Cache-Control': 'private, max-age=3600', Vary: 'Origin' },
-  })
+  return sharedJsonResponse(body, status, origin, 3600)
 }
 
 /** ms -> LRC's [mm:ss.xx], so the existing client-side LRC parser needs no
@@ -54,8 +36,8 @@ function lrcStamp(ms: number): string {
   return `[${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centis).padStart(2, '0')}]`
 }
 
-export async function onRequestGet({ request, env }: PagesContext): Promise<Response> {
-  const origin = getAllowedOrigin(request, env)
+export async function onRequestGet({ request, env }: PagesContext<Env>): Promise<Response> {
+  const origin = allowedOrigin(request, env)
   if (!origin) return Response.json({ error: 'Lyrics are not configured for this origin.' }, { status: 403 })
 
   if (!env.LYRICA_URL) {
@@ -104,6 +86,4 @@ export async function onRequestGet({ request, env }: PagesContext): Promise<Resp
   return jsonResponse({ error: 'No lyrics found.' }, 404, origin)
 }
 
-export function onRequest(): Response {
-  return Response.json({ error: 'Method is not allowed.' }, { status: 405, headers: { Allow: 'GET' } })
-}
+export const onRequest = methodNotAllowed

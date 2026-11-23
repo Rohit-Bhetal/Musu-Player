@@ -176,6 +176,15 @@ describe('apiSource.search', () => {
   })
 })
 
+describe('apiSource.getTrack with a malformed id', () => {
+  it('rejects an id with no backend prefix instead of silently misreading it', async () => {
+    // Regression: indexOf(':') returning -1 for a colon-less id used to fall
+    // through to slice(0, -1) ("drop the last char", not "not found"), so
+    // "audiusX" read as backend "audius" with the whole string as its raw id.
+    await expect(apiSource.getTrack('audiusX')).rejects.toThrow('unknown track id audiusX')
+  })
+})
+
 describe('apiSource.getStreamUrl', () => {
   it('returns the direct Audius stream endpoint with no network call', async () => {
     const fetchSpy = vi.fn()

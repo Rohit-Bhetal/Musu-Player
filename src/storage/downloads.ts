@@ -11,7 +11,7 @@ import {
   deleteLyrics,
   getBlob,
   getTrack,
-  idbGetAll,
+  getTracksByIds,
   listDownloads,
   putBlob,
   saveDownload,
@@ -246,12 +246,5 @@ export const downloadedAudioUrl = (trackId: string): Promise<string | null> =>
 export const downloadedArtworkUrl = (trackId: string): Promise<string | null> =>
   downloadOf(trackId)?.artworkKey ? objectUrl(artworkKey(trackId)) : Promise.resolve(null)
 
-export async function downloadedTracks(): Promise<Track[]> {
-  const done = downloads.get().filter((r) => r.status === 'done')
-  if (done.length === 0) return []
-  // One transaction over the whole store, not one idbGet per track — this
-  // list is read every time a download finishes and every time Home loads.
-  const all = await idbGetAll<Track>('tracks').catch(() => [])
-  const byId = new Map(all.map((t) => [t.id, t]))
-  return done.map((r) => byId.get(r.trackId)).filter((t): t is Track => Boolean(t))
-}
+export const downloadedTracks = (): Promise<Track[]> =>
+  getTracksByIds(downloads.get().filter((r) => r.status === 'done').map((r) => r.trackId))

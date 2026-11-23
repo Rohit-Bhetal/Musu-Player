@@ -4,6 +4,7 @@ import type { Track } from '../source/MusicSource'
 import { player } from '../player'
 import { currentTrackOf } from '../player/PlayerEngine'
 import { downloads, downloadedTracks, formatBytes, removeAll } from '../storage/downloads'
+import { getTracksByIds, type DownloadRecord } from '../storage/db'
 import { online } from '../pwa/pwa'
 import { useStore } from './store'
 import { RowSkeleton, TrackRow } from './TrackRow'
@@ -22,6 +23,7 @@ export function Downloads({ onPlay }: { onPlay: (queue: Track[], index: number) 
   // on `records` directly re-read the entire tracks store from IndexedDB on
   // every one of those — once per download tick instead of once per finish.
   const doneKey = done.map((r) => r.trackId).join(',')
+  const pendingKey = pending.map((r) => r.trackId).join(',')
 
   // The records store holds ids; the tracks themselves come from IndexedDB.
   useEffect(() => {
@@ -32,6 +34,21 @@ export function Downloads({ onPlay }: { onPlay: (queue: Track[], index: number) 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doneKey])
+
+  // One batched lookup for every queued/running/failed row, not one idbGet
+  // transaction per row — "Download all" on a long playlist queues dozens at once.
+  const [pendingTracks, setPendingTracks] = useState<ReadonlyMap<string, Track>>(new Map())
+  useEffect(() => {
+    let live = true
+    void getTracksByIds(pending.map((r) => r.trackId)).then(
+      (list) => live && setPendingTracks(new Map(list.map((t) => [t.id, t]))),
+    )
+    return () => {
+      live = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingKey])
+
   const bytes = done.reduce((total, r) => total + r.bytesTotal, 0)
   const queue = tracks ?? []
 
@@ -91,7 +108,7 @@ export function Downloads({ onPlay }: { onPlay: (queue: Track[], index: number) 
                 ))}
             {/* queued, running and failed ones have no playable row yet */}
             {pending.map((record) => (
-              <PendingRow key={record.trackId} trackId={record.trackId} />
+              <PendingRow key={record.trackId} record={record} track={pendingTracks.get(record.trackId)} />
             ))}
           </div>
         </>
@@ -100,22 +117,8 @@ export function Downloads({ onPlay }: { onPlay: (queue: Track[], index: number) 
   )
 }
 
-function PendingRow({ trackId }: { trackId: string }): JSX.Element | null {
-  const records = useStore(downloads)
-  const record = records.find((r) => r.trackId === trackId)
-  const [track, setTrack] = useState<Track | null>(null)
-
-  useEffect(() => {
-    let live = true
-    void import('../storage/db').then(({ getTrack }) =>
-      getTrack(trackId).then((found) => live && setTrack(found ?? null)),
-    )
-    return () => {
-      live = false
-    }
-  }, [trackId])
-
-  if (!record || !track) return null
+function PendingRow({ record, track }: { record: DownloadRecord; track: Track | undefined }): JSX.Element | null {
+  if (!track) return null
   return (
     <TrackRow
       track={track}

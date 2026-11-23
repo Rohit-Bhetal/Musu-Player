@@ -32,6 +32,11 @@ const withId = (backend: Backend, rawId: string): string => `${backend}:${rawId}
 
 function splitId(id: string): [Backend, string] {
   const i = id.indexOf(':')
+  // Without this, a colon-less id falls through to slice(0, -1) — "drop the
+  // last character" — not "not found", so e.g. "audiusX" was silently read
+  // as backend "audius" with the whole original string as its id, instead of
+  // throwing here with a clear error.
+  if (i < 0) throw new Error(`unknown track id ${id}`)
   const backend = id.slice(0, i)
   if (backend !== 'audius' && backend !== 'youtube' && backend !== 'piped' && backend !== 'radio') {
     throw new Error(`unknown track id ${id}`)

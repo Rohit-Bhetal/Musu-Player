@@ -28,7 +28,7 @@ export function MiniPlayer({ onOpen }: { onOpen: () => void }): JSX.Element | nu
       <MiniProgress />
       <button type="button" className="mini-open" onClick={onOpen} aria-label={`Now playing: ${track.title}. Open full player`}>
         {/* Metrics.MiniPlayerArtworkSize = 38dp, ArtworkCorner = 8dp */}
-        <Artwork src={track.artworkUrl} size={38} alt="" radius={8} />
+        <Artwork src={track.artworkUrl} size={38} alt="" radius={8} seed={track.id} />
         <span className="row-text">
           <span className="row-title">{track.title}</span>
           <span className="row-sub">{track.artist}</span>

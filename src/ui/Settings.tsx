@@ -4,6 +4,8 @@ import { downloads, formatBytes, removeAll } from '../storage/downloads'
 import { isStandalone, online, swState } from '../pwa/pwa'
 import { debugConsoleEnabled, setDebugConsole } from '../debug/eruda'
 import { diagEvents } from '../diagnostics'
+import { currentUser, signInWithGoogle, signOut } from '../sync/auth'
+import { firebaseConfigured } from '../sync/firebase'
 import { useStore } from './store'
 import { hideMiniWhenPaused, setHideMiniWhenPaused } from './settings'
 
@@ -20,13 +22,19 @@ function Storage(): JSX.Element {
   const records = useStore(downloads)
   const [estimate, setEstimate] = useState<StorageEstimate | null>(null)
   const [persisted, setPersisted] = useState<boolean | null>(null)
+  const done = records.filter((r) => r.status === 'done')
+  // Only the set of *finished* ids, not the whole records array: a download
+  // in progress calls downloads.set() on every network chunk, and depending
+  // on `records` directly re-asked the OS for a storage estimate on every one
+  // of those — once per download tick instead of once per finish.
+  const doneKey = done.map((r) => r.trackId).join(',')
 
   useEffect(() => {
     void navigator.storage?.estimate?.().then(setEstimate).catch(() => undefined)
     void navigator.storage?.persisted?.().then(setPersisted).catch(() => undefined)
-  }, [records])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doneKey])
 
-  const done = records.filter((r) => r.status === 'done')
   const downloadedBytes = done.reduce((total, r) => total + r.bytesTotal, 0)
   const used = estimate?.usage ?? 0
   const quota = estimate?.quota ?? 0
@@ -62,6 +70,34 @@ function Storage(): JSX.Element {
   )
 }
 
+function Account(): JSX.Element | null {
+  const user = useStore(currentUser)
+  if (!firebaseConfigured) return null
+
+  return (
+    <div className="card">
+      {user ? (
+        <>
+          <Value label="Signed in as" value={user.email ?? user.displayName ?? user.uid} />
+          <div className="card-row">
+            <span>Cloud backup</span>
+            <button type="button" className="chip" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="card-row">
+          <span>Back up playlists &amp; history</span>
+          <button type="button" className="chip" onClick={() => void signInWithGoogle()}>
+            Sign in with Google
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Settings(): JSX.Element {
   const sw = useStore(swState)
   const isOnline = useStore(online)
@@ -72,6 +108,13 @@ export function Settings(): JSX.Element {
   return (
     <>
       <h1>Settings</h1>
+
+      {firebaseConfigured ? (
+        <>
+          <h2>Account</h2>
+          <Account />
+        </>
+      ) : null}
 
       <h2>Playback</h2>
       <div className="card">

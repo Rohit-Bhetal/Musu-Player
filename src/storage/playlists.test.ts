@@ -8,9 +8,12 @@ const {
   addToPlaylist,
   createPlaylist,
   deletePlaylist,
+  importPlaylists,
   initPlaylists,
   isInPlaylist,
+  LIKED_SONGS_ID,
   moveInPlaylist,
+  onPlaylistChange,
   playlistOf,
   playlistOfflineStatus,
   playlists,
@@ -135,6 +138,58 @@ describe('playlistOfflineStatus', () => {
   })
 })
 
+describe('onPlaylistChange', () => {
+  it('fires with the new playlist on create, rename and track add, and null on delete', async () => {
+    const seen: Array<{ id: string; playlist: unknown }> = []
+    const stop = onPlaylistChange((playlist, id) => seen.push({ id, playlist }))
+
+    const { id } = await createPlaylist('Mix')
+    await renamePlaylist(id, 'Mix 2')
+    await addToPlaylist(id, 'a')
+    await deletePlaylist(id)
+    stop()
+
+    expect(seen.map((s) => s.playlist === null)).toEqual([false, false, false, true])
+    expect(seen.every((s) => s.id === id)).toBe(true)
+  })
+})
+
+describe('importPlaylists', () => {
+  it('adds a cloud playlist that does not exist locally', () => {
+    importPlaylists([{ id: 'cloud-1', name: 'From the cloud', trackIds: ['a'], updatedAt: 1 }])
+
+    expect(playlistOf('cloud-1')?.name).toBe('From the cloud')
+  })
+
+  it('keeps the local copy when it is newer than the incoming one', async () => {
+    const { id } = await createPlaylist('Local name')
+    const local = playlistOf(id)!
+
+    importPlaylists([{ ...local, name: 'Stale cloud name', updatedAt: local.updatedAt! - 1000 }])
+
+    expect(playlistOf(id)?.name).toBe('Local name')
+  })
+
+  it('takes the incoming copy when it is newer than the local one', async () => {
+    const { id } = await createPlaylist('Local name')
+    const local = playlistOf(id)!
+
+    importPlaylists([{ ...local, name: 'Newer cloud name', updatedAt: local.updatedAt! + 1000 }])
+
+    expect(playlistOf(id)?.name).toBe('Newer cloud name')
+  })
+
+  it('treats a playlist with no updatedAt (saved before cloud sync existed) as older than any timestamped one', async () => {
+    const { id } = await createPlaylist('Local name')
+    const local = playlistOf(id)!
+    playlists.set([{ ...local, updatedAt: undefined }])
+
+    importPlaylists([{ ...local, name: 'Cloud name', updatedAt: 1 }])
+
+    expect(playlistOf(id)?.name).toBe('Cloud name')
+  })
+})
+
 describe('initPlaylists', () => {
   it('loads whatever was saved from a previous session', async () => {
     const { id } = await createPlaylist('Saved')
@@ -144,5 +199,27 @@ describe('initPlaylists', () => {
     await initPlaylists()
 
     expect(playlistOf(id)?.trackIds).toEqual(['a'])
+  })
+
+  it('creates Liked Songs once, and never again on a later launch', async () => {
+    await initPlaylists()
+    expect(playlistOf(LIKED_SONGS_ID)).toMatchObject({ name: 'Liked Songs', trackIds: [] })
+
+    await addToPlaylist(LIKED_SONGS_ID, 'a')
+    playlists.set([]) // simulate a fresh reload before the store repopulates
+    await initPlaylists()
+
+    // still has the earlier like, not reset to a fresh empty playlist
+    expect(playlistOf(LIKED_SONGS_ID)?.trackIds).toEqual(['a'])
+  })
+})
+
+describe('Liked Songs', () => {
+  it('cannot be deleted', async () => {
+    await initPlaylists()
+
+    await deletePlaylist(LIKED_SONGS_ID)
+
+    expect(playlistOf(LIKED_SONGS_ID)).not.toBeUndefined()
   })
 })

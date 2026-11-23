@@ -1,0 +1,7 @@
+# Pins the Pages Functions runtime so behavior doesn't silently shift between
+# deploys — without this, Wrangler uses "today" as the compatibility date,
+# meaning a function could run slightly differently on the day you deploy
+# than the day you last tested it, with no code change to point at.
+name = "musu-player"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-11-23"

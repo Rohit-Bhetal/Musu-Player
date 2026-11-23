@@ -90,6 +90,33 @@ where iOS ignores any attempt to set volume and gives it to the hardware buttons
 instead. The control is feature-tested rather than assumed, so it is simply
 absent where it would do nothing.
 
+## Cloud backup (optional)
+
+Settings → **Sign in with Google** backs up playlists and play history to
+Firestore, and restores them after a reinstall or on a second device. Nothing
+about offline playback or downloads depends on this — it only ever adds a
+cloud mirror on top of what IndexedDB already has, and Firestore's own offline
+cache means an edit made while offline still queues and flushes once back
+online, same as every other write in this app.
+
+To turn it on:
+
+1. Create a project at [console.firebase.google.com](https://console.firebase.google.com).
+2. **Build → Authentication → Sign-in method** → enable **Google**.
+3. **Build → Firestore Database** → create a database (any region), then
+   **Rules** tab → paste in [`firestore.rules`](firestore.rules) → Publish.
+   It scopes every document to `users/{the signed-in user's own uid}`, which is
+   the only thing actually stopping one user from reading another's data.
+4. **Project settings → General → Your apps** → add a **Web app** → copy the
+   config values into `.env.local` (gitignored; `.env.example` has the keys).
+   These values are not secret — they identify the project, not authorize
+   access to it — but a per-project default should not get committed.
+5. **Authentication → Settings → Authorized domains** → add whatever origin
+   you actually open the app from (`localhost` is already there; add your
+   deployed domain).
+
+Unset entirely, the Account row in Settings just does not appear.
+
 ## Deploy
 
 Static `dist/` with an SPA fallback — Cloudflare Pages or GitHub Pages. Written

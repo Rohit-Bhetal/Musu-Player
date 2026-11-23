@@ -1,6 +1,7 @@
 import type { JSX, ReactNode } from 'react'
 import type { Track } from '../source/MusicSource'
 import { Artwork } from './Artwork'
+import { Icon } from './Icon'
 
 export function formatTime(sec: number | undefined): string {
   if (sec === undefined || !Number.isFinite(sec) || sec < 0) return '--:--'
@@ -35,7 +36,7 @@ export function TrackRow({
         aria-label={`Play ${track.title} by ${track.artist}`}
       >
         {/* Dimensions.ListThumbnailSize 48dp, ListRowArtShape 5dp */}
-        <Artwork src={artworkSrc ?? track.artworkUrl} size={48} alt="" radius={5} />
+        <Artwork src={artworkSrc ?? track.artworkUrl} size={48} alt="" radius={5} seed={track.id} />
         <span className="row-text">
           <span className="row-title" style={active ? { color: 'var(--accent-text)' } : undefined}>
             {track.title}
@@ -45,6 +46,35 @@ export function TrackRow({
       </button>
       {right}
     </div>
+  )
+}
+
+/** The up/down pair a reorderable row shows in `right` — same shape in
+ * Playlists and the play Queue, just wired to a different move function. */
+export function ReorderButtons({
+  label,
+  disabledUp,
+  disabledDown,
+  onUp,
+  onDown,
+}: {
+  label: string
+  disabledUp: boolean
+  disabledDown: boolean
+  onUp: () => void
+  onDown: () => void
+}): JSX.Element {
+  return (
+    <>
+      <button type="button" className="row-action" disabled={disabledUp} aria-label={`Move ${label} up`} onClick={onUp}>
+        <span style={{ display: 'inline-flex', transform: 'rotate(180deg)' }}>
+          <Icon name="chevron" size={18} />
+        </span>
+      </button>
+      <button type="button" className="row-action" disabled={disabledDown} aria-label={`Move ${label} down`} onClick={onDown}>
+        <Icon name="chevron" size={18} />
+      </button>
+    </>
   )
 }
 

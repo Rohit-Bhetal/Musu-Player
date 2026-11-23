@@ -5,6 +5,7 @@ import { enqueue, isDownloaded } from '../storage/downloads'
 import {
   createPlaylist,
   deletePlaylist,
+  LIKED_SONGS_ID,
   moveInPlaylist,
   playlistOf,
   playlistOfflineStatus,
@@ -15,7 +16,8 @@ import {
 import { online } from '../pwa/pwa'
 import { useStore } from './store'
 import { Icon } from './Icon'
-import { RowSkeleton, TrackRow } from './TrackRow'
+import { placeholderGradient } from './Artwork'
+import { ReorderButtons, RowSkeleton, TrackRow } from './TrackRow'
 import { TrackMenu } from './TrackMenu'
 import { NewPlaylistForm } from './NewPlaylistForm'
 
@@ -115,26 +117,13 @@ function PlaylistDetail({
                 onSelect={() => play(track)}
                 right={
                   <>
-                    <button
-                      type="button"
-                      className="row-action"
-                      disabled={order <= 0}
-                      aria-label={`Move ${track.title} up`}
-                      onClick={() => moveInPlaylist(playlist.id, order, order - 1)}
-                    >
-                      <span style={{ display: 'inline-flex', transform: 'rotate(180deg)' }}>
-                        <Icon name="chevron" size={18} />
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      className="row-action"
-                      disabled={order < 0 || order >= playlist.trackIds.length - 1}
-                      aria-label={`Move ${track.title} down`}
-                      onClick={() => moveInPlaylist(playlist.id, order, order + 1)}
-                    >
-                      <Icon name="chevron" size={18} />
-                    </button>
+                    <ReorderButtons
+                      label={track.title}
+                      disabledUp={order <= 0}
+                      disabledDown={order < 0 || order >= playlist.trackIds.length - 1}
+                      onUp={() => moveInPlaylist(playlist.id, order, order - 1)}
+                      onDown={() => moveInPlaylist(playlist.id, order, order + 1)}
+                    />
                     <TrackMenu track={track} inPlaylistId={playlist.id} />
                   </>
                 }
@@ -200,8 +189,18 @@ export function Playlists({ onPlay }: { onPlay: OnPlay }): JSX.Element {
             return (
               <div className="row" key={playlist.id}>
                 <button type="button" className="row-main" onClick={() => setOpenId(playlist.id)}>
-                  <span className="art" style={{ width: 48, height: 48, display: 'grid', placeItems: 'center' }}>
-                    <Icon name="playlist" size={22} />
+                  <span
+                    className="art"
+                    style={{
+                      width: 48,
+                      height: 48,
+                      display: 'grid',
+                      placeItems: 'center',
+                      color: '#ffffffd9',
+                      background: playlist.id === LIKED_SONGS_ID ? 'var(--accent)' : placeholderGradient(playlist.id),
+                    }}
+                  >
+                    <Icon name={playlist.id === LIKED_SONGS_ID ? 'heart-filled' : 'playlist'} size={22} />
                   </span>
                   <span className="row-text">
                     <span className="row-title">{playlist.name}</span>
@@ -211,18 +210,20 @@ export function Playlists({ onPlay }: { onPlay: OnPlay }): JSX.Element {
                     </span>
                   </span>
                 </button>
-                <button
-                  type="button"
-                  className="row-action"
-                  aria-label={`Delete playlist ${playlist.name}`}
-                  onClick={() => {
-                    if (confirm(`Delete “${playlist.name}”? This only removes the playlist, not any downloads.`)) {
-                      void deletePlaylist(playlist.id)
-                    }
-                  }}
-                >
-                  <Icon name="trash" size={20} />
-                </button>
+                {playlist.id !== LIKED_SONGS_ID ? (
+                  <button
+                    type="button"
+                    className="row-action"
+                    aria-label={`Delete playlist ${playlist.name}`}
+                    onClick={() => {
+                      if (confirm(`Delete “${playlist.name}”? This only removes the playlist, not any downloads.`)) {
+                        void deletePlaylist(playlist.id)
+                      }
+                    }}
+                  >
+                    <Icon name="trash" size={20} />
+                  </button>
+                ) : null}
               </div>
             )
           })}

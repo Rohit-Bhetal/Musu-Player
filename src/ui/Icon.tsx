@@ -28,6 +28,27 @@ const STROKE: Record<string, string[]> = {
   plus: ['M12 4v16', 'M4 12h16'],
   // the iOS share-sheet glyph: an arrow out of an open box
   share: ['M12 15V3', 'm7 8 5-5 5 5', 'M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6'],
+  // the standard AirPlay/output-device glyph: an open-bottomed rectangle (the
+  // screen) over a play-style triangle (the "cast here" arrow)
+  airplay: [
+    'M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1',
+    'M12 15l5 6H7z',
+  ],
+  heart: ['M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z'],
+  // theme button states: light / dark / system (a plain circle, "auto")
+  sun: [
+    'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z',
+    'M12 1v2',
+    'M12 21v2',
+    'M4.22 4.22l1.42 1.42',
+    'M18.36 18.36l1.42 1.42',
+    'M1 12h2',
+    'M21 12h2',
+    'M4.22 19.78l1.42-1.42',
+    'M18.36 5.64l1.42-1.42',
+  ],
+  moon: ['M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'],
+  'theme-auto': ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z'],
   radio: [
     'M4.9 19.1C1 15.2 1 8.8 4.9 4.9',
     'M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5',
@@ -38,6 +59,8 @@ const STROKE: Record<string, string[]> = {
 }
 
 const FILL: Record<string, string[]> = {
+  // same path as the outline `heart` — filled is the "liked" state
+  'heart-filled': ['M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21.2l7.8-7.8 1-1a5.5 5.5 0 0 0 0-7.8z'],
   more: [
     'M5 10.3a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4z',
     'M12 10.3a1.7 1.7 0 1 0 0 3.4 1.7 1.7 0 0 0 0-3.4z',

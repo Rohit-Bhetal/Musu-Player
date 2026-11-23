@@ -87,6 +87,42 @@ function volumeIsSettable(): boolean {
   }
 }
 
+/**
+ * Non-standard WebKit extension — Safari/iOS's own "AirPlay/Bluetooth output"
+ * picker for a media element, shown with the same route choice (this
+ * device's speaker vs. a connected headset or AirPlay target) as the Lock
+ * Screen's route button. There is no cross-browser equivalent: `setSinkId()`
+ * is the standard API for redirecting a media element to a chosen output
+ * device, but WebKit has never implemented it, so this is Safari-only by
+ * nature, not an oversight — hidden entirely wherever it is not there.
+ */
+interface WebkitAirplayAudio extends HTMLAudioElement {
+  webkitShowPlaybackTargetPicker?: () => void
+}
+
+function outputPickerAvailable(): boolean {
+  return typeof HTMLMediaElement !== 'undefined' && 'webkitShowPlaybackTargetPicker' in HTMLMediaElement.prototype
+}
+
+/**
+ * Chrome's cross-platform equivalent (desktop and Android) — `setSinkId()`
+ * redirects a media element to a chosen output device. There is no native
+ * system picker to call here the way Safari's is, so the UI has to list
+ * devices itself (OutputDeviceSheet) and call setOutputDevice with the one
+ * picked. TS's DOM lib types `setSinkId` as always present (it describes the
+ * spec, not per-browser support) — WebKit has never actually implemented it,
+ * which is exactly what this runtime check is for; canPickOutputDevice above
+ * is the one that is true there instead.
+ */
+function deviceListAvailable(): boolean {
+  return (
+    typeof HTMLMediaElement !== 'undefined' &&
+    'setSinkId' in HTMLMediaElement.prototype &&
+    typeof navigator !== 'undefined' &&
+    Boolean(navigator.mediaDevices?.enumerateDevices)
+  )
+}
+
 function savedVolume(): number {
   const saved = Number(localStorage.getItem(VOLUME_KEY))
   return Number.isFinite(saved) && saved >= 0 && saved <= 1 ? saved : 1
@@ -114,6 +150,10 @@ export class PlayerEngine {
   readonly volume: Store<number> = createStore<number>(1)
   /** False on iPhone: see volumeIsSettable. */
   readonly canSetVolume: boolean = volumeIsSettable()
+  /** True only on Safari/iOS: see outputPickerAvailable. */
+  readonly canPickOutputDevice: boolean = outputPickerAvailable()
+  /** True on Chrome, desktop and Android: see deviceListAvailable. */
+  readonly canListOutputDevices: boolean = deviceListAvailable()
 
   private readonly deps: PlayerDeps
   private current: ResolvedUrl | null = null
@@ -268,6 +308,28 @@ export class PlayerEngine {
     } catch {
       /* private mode, or storage full — a forgotten volume is not worth a toast */
     }
+  }
+
+  /** No-op where canPickOutputDevice is false. Must be called from inside a
+   * user gesture (the tap that opens it) — same iOS rule as audio.play(). */
+  showOutputPicker(): void {
+    ;(this.audio as WebkitAirplayAudio).webkitShowPlaybackTargetPicker?.()
+  }
+
+  /** Empty where canListOutputDevices is false. Labels are blank without a
+   * prior microphone/camera permission grant on this origin — deliberately
+   * not requested here just to show device names; the UI falls back to a
+   * plain numbered label rather than prompting for mic access. */
+  async listOutputDevices(): Promise<MediaDeviceInfo[]> {
+    if (!this.canListOutputDevices) return []
+    const devices = await navigator.mediaDevices.enumerateDevices().catch(() => [])
+    return devices.filter((d) => d.kind === 'audiooutput')
+  }
+
+  /** No-op where canListOutputDevices is false. */
+  async setOutputDevice(deviceId: string): Promise<void> {
+    if (!this.canListOutputDevices) return
+    await this.audio.setSinkId(deviceId).catch(() => undefined)
   }
 
   setShuffle(on: boolean): void {

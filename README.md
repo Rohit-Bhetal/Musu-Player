@@ -1,4 +1,4 @@
-# Offline Music
+# Musu Player
 
 An iPhone-first music PWA: install from Safari, download songs, play them with no
 network, with Dynamic Island / Lock Screen controls.
@@ -60,11 +60,35 @@ the last 50 player and Media Session events.
 real sources clear the cross-origin-fetch bar (verified with real requests) and
 which do not.
 
-Search combines the music catalog with YouTube video results. YouTube title
-search requires a server-side `YOUTUBE_API_KEY`; playback uses YouTube's
-official embedded player and is not added to the offline library or download
-queue. Pasting a YouTube URL or ID loads the embed without searching. See
-[docs/YOUTUBE_SEARCH.md](docs/YOUTUBE_SEARCH.md) for API key setup.
+Audius, YouTube and internet radio all answer through one `MusicSource`, so
+Search returns a single list and every row is an ordinary track: same audio
+element, same queue, same Dynamic Island controls, same offline download.
+
+YouTube needs two things on the server side. Search needs a `YOUTUBE_API_KEY`,
+and audio needs the small container in [`extractor/`](extractor/) running
+somewhere you control — YouTube no longer hands stream URLs to an anonymous
+caller, so nothing client-side can replace it.
+[docs/MUSIC_SOURCE.md](docs/MUSIC_SOURCE.md) has the measurements, the deploy
+steps, and the terms-of-service caveat. Copy `.dev.vars.example` to `.dev.vars`
+and run `npm run dev:pages`.
+
+## Downloads, lyrics and volume
+
+Tap the arrow beside any song to keep it on the device: audio, cover art and
+lyrics, two at a time, resumable after a restart, with cancel, retry and delete.
+A downloaded song plays from its blob, so it needs no network and costs no
+bandwidth — Home shows a **Downloaded** row, and offline that is the only row.
+Live radio has no end, so it is the one thing that cannot be downloaded.
+
+Now Playing has a **Lyrics** toggle: synced LRC lines highlight and follow the
+song, tapping a line seeks to it, and auto-scroll steps aside for three seconds
+after you scroll. Lyrics come from LRCLIB and are saved with each download, so
+they work offline too. Unsynced lyrics still show, just without the highlight.
+
+The volume slider appears under the transport controls **except on iPhone**,
+where iOS ignores any attempt to set volume and gives it to the hardware buttons
+instead. The control is feature-tested rather than assumed, so it is simply
+absent where it would do nothing.
 
 ## Deploy
 

@@ -34,9 +34,10 @@ export function TrackRow({
         onClick={() => onSelect?.(track)}
         aria-label={`Play ${track.title} by ${track.artist}`}
       >
-        <Artwork src={artworkSrc ?? track.artworkUrl} size={48} alt="" />
+        {/* Dimensions.ListThumbnailSize 48dp, ListRowArtShape 5dp */}
+        <Artwork src={artworkSrc ?? track.artworkUrl} size={48} alt="" radius={5} />
         <span className="row-text">
-          <span className="row-title" style={active ? { color: 'var(--accent)' } : undefined}>
+          <span className="row-title" style={active ? { color: 'var(--accent-text)' } : undefined}>
             {track.title}
           </span>
           <span className="row-sub">{subtitle ?? `${track.artist}${track.album ? ` · ${track.album}` : ''}`}</span>
@@ -50,9 +51,10 @@ export function TrackRow({
 export function RowSkeleton(): JSX.Element {
   return (
     <div className="row" aria-hidden="true">
-      <div className="skeleton" style={{ width: 48, height: 48, flex: '0 0 auto' }} />
+      {/* the loading state is the brand mark, not an empty grey square */}
+      <div className="skel-art" style={{ width: 48, height: 48, borderRadius: 5 }} />
       <span className="row-text">
-        <span className="skeleton" style={{ display: 'block', width: '55%', height: 13, marginBottom: 7 }} />
+        <span className="skeleton" style={{ display: 'block', width: '55%', height: 13, marginBottom: 6 }} />
         <span className="skeleton" style={{ display: 'block', width: '35%', height: 11 }} />
       </span>
     </div>

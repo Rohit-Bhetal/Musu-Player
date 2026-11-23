@@ -5,21 +5,36 @@ export interface YouTubeVideo {
   thumbnailUrl?: string
 }
 
+export interface YouTubeChartSection {
+  /** Two-letter country code; the UI turns it into a name. */
+  region: string
+  items: YouTubeVideo[]
+}
+
 interface YouTubeSearchResponse {
   items?: YouTubeVideo[]
+  sections?: YouTubeChartSection[]
   error?: string
+}
+
+async function get(path: string): Promise<YouTubeSearchResponse> {
+  const response = await fetch(path)
+  const data = (await response.json()) as YouTubeSearchResponse
+
+  if (!response.ok) {
+    throw new Error(data.error ?? `YouTube request failed (${response.status}).`)
+  }
+
+  return data
 }
 
 export async function searchYouTubeVideos(query: string): Promise<YouTubeVideo[]> {
   const search = query.trim()
   if (!search) return []
+  return (await get(`/api/youtube/search?q=${encodeURIComponent(search)}`)).items ?? []
+}
 
-  const response = await fetch(`/api/youtube/search?q=${encodeURIComponent(search)}`)
-  const data = (await response.json()) as YouTubeSearchResponse
-
-  if (!response.ok) {
-    throw new Error(data.error ?? `YouTube search failed (${response.status}).`)
-  }
-
-  return data.items ?? []
+/** Most popular music per country — one request, one row each, for Home. */
+export async function fetchYouTubeCharts(): Promise<YouTubeChartSection[]> {
+  return (await get('/api/youtube/search?chart=music')).sections ?? []
 }

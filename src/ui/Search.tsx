@@ -1,154 +1,161 @@
 import type { FormEvent, JSX } from 'react'
-import { useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import { source } from '../source'
 import type { Track } from '../source/MusicSource'
-import { searchYouTubeVideos, type YouTubeVideo } from '../source/youtubeSearch'
 import { useAsync } from './useAsync'
 import { RowSkeleton, TrackRow } from './TrackRow'
+import { TrackMenu } from './TrackMenu'
+import { Icon } from './Icon'
 import { parseYouTubeVideoId } from './youtubeVideo'
-import { YouTubeVideoPlayer } from './YouTubeVideoPlayer'
+import { groupDuplicates } from './groupDuplicates'
+import { recentSearches, recordSearch } from './recentSearches'
+import { useStore } from './store'
 
-interface SearchData {
-  query: string
-  tracks: Track[]
-  videos: YouTubeVideo[]
-  musicError: string | null
-  youtubeError: string | null
-}
-
-type SearchResult = { kind: 'music'; track: Track } | { kind: 'youtube'; video: YouTubeVideo }
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : 'Search failed.'
-}
-
-async function searchAll(query: string): Promise<SearchData> {
-  const directVideoId = parseYouTubeVideoId(query)
-  if (directVideoId) {
-    return {
-      query,
-      tracks: [],
-      videos: [],
-      musicError: null,
-      youtubeError: null,
-    }
-  }
-
-  const musicSearch = source.search(query)
-  const videoSearch =
-    query.trim().length >= 2 ? searchYouTubeVideos(query) : Promise.resolve<YouTubeVideo[]>([])
-  const [musicResult, videoResult] = await Promise.allSettled([musicSearch, videoSearch])
-
-  return {
-    query,
-    tracks: musicResult.status === 'fulfilled' ? musicResult.value : [],
-    videos: videoResult.status === 'fulfilled' ? videoResult.value : [],
-    musicError: musicResult.status === 'rejected' ? messageOf(musicResult.reason) : null,
-    youtubeError: videoResult.status === 'rejected' ? messageOf(videoResult.reason) : null,
-  }
+/** A pasted YouTube link or id is one exact track, not a search. */
+async function searchOrResolve(query: string): Promise<Track[]> {
+  const videoId = parseYouTubeVideoId(query)
+  if (videoId) return [await source.getTrack(`youtube:${videoId}`)]
+  return source.search(query)
 }
 
 export function Search({ onPlay }: { onPlay: (queue: Track[], index: number) => void }): JSX.Element {
   const [query, setQuery] = useState('')
-  const [submittedQuery, setSubmittedQuery] = useState('')
-  const [searchVersion, setSearchVersion] = useState(0)
-  const [selectedVideo, setSelectedVideo] = useState<YouTubeVideo | null>(null)
-  const { data: searchData, loading } = useAsync(
-    () => searchAll(submittedQuery),
-    [submittedQuery, searchVersion],
+  const [submitted, setSubmitted] = useState('')
+  // bumped on every submit so re-running the same query retries it
+  const [attempt, setAttempt] = useState(0)
+  const [expandedGroups, setExpandedGroups] = useState<ReadonlySet<string>>(new Set())
+  const recent = useStore(recentSearches)
+  const inputRef = useRef<HTMLInputElement>(null)
+  // An empty query used to fall through to source.search(''), which is the
+  // full YouTube-chart + Audius-trending fan-out Home already pays for — every
+  // tab open was 6 YouTube quota units for a list nobody asked to see here.
+  const { data, error, loading } = useAsync(
+    () => (submitted ? searchOrResolve(submitted) : Promise.resolve([])),
+    [submitted, attempt],
   )
-  const data = searchData?.query === submittedQuery ? searchData : null
-  const directVideoId = parseYouTubeVideoId(submittedQuery)
-  const activeVideo =
-    selectedVideo ??
-    (directVideoId
-      ? { videoId: directVideoId, title: 'YouTube video', channelTitle: 'YouTube' }
-      : null)
-  const rows: SearchResult[] = []
-  const tracks = data?.tracks ?? []
-  const videos = data?.videos ?? []
-  for (let index = 0; index < Math.max(tracks.length, videos.length); index += 1) {
-    const video = videos[index]
-    const track = tracks[index]
-    if (video) rows.push({ kind: 'youtube', video })
-    if (track) rows.push({ kind: 'music', track })
+  const tracks = data ?? []
+  const groups = groupDuplicates(tracks)
+
+  function runSearch(q: string): void {
+    const trimmed = q.trim()
+    setQuery(trimmed)
+    setSubmitted(trimmed)
+    setAttempt((n) => n + 1)
+    recordSearch(trimmed)
   }
 
   function submitSearch(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault()
-    setSubmittedQuery(query.trim())
-    setSelectedVideo(null)
-    setSearchVersion((version) => version + 1)
+    runSearch(query)
+  }
+
+  function toggleGroup(key: string): void {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   }
 
   return (
     <>
       <h1>Search</h1>
-      <form className="search-form" onSubmit={submitSearch}>
-        <input
-          className="search-field"
-          type="search"
-          inputMode="search"
-          placeholder="Songs, artists, YouTube videos"
-          aria-label="Search music and YouTube videos"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <button className="search-submit" type="submit">
-          Search
-        </button>
+      <form className="search-form" onSubmit={submitSearch} role="search">
+        <div className="search-field">
+          <Icon name="search" size={18} />
+          <input
+            ref={inputRef}
+            type="search"
+            inputMode="search"
+            // so the on-screen keyboard offers "Search" rather than a newline
+            enterKeyHint="search"
+            autoCorrect="off"
+            autoCapitalize="none"
+            spellCheck={false}
+            placeholder="Songs, artists, or a YouTube link"
+            aria-label="Search music"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          {query ? (
+            <button
+              type="button"
+              className="search-clear"
+              aria-label="Clear search"
+              onClick={() => {
+                setQuery('')
+                inputRef.current?.focus()
+              }}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          ) : null}
+        </div>
       </form>
-      {activeVideo ? <YouTubeVideoPlayer video={activeVideo} /> : null}
-      {data?.youtubeError ? (
-        <p className="search-provider-error" role="status">
-          YouTube results unavailable: {data.youtubeError}
-        </p>
-      ) : null}
-      {data?.musicError ? (
-        <p className="search-provider-error" role="status">
-          Music results unavailable: {data.musicError}
-        </p>
-      ) : null}
-      {loading && rows.length === 0 && !activeVideo ? (
+
+      {loading && tracks.length === 0 ? (
         <div className="rows" style={{ marginTop: 12 }}>
-          {Array.from({ length: 4 }, (_, i) => (
+          <p className="sr-only" role="status">
+            Searching…
+          </p>
+          {/* enough to fill the screen, so the list does not grow into place */}
+          {Array.from({ length: 7 }, (_, i) => (
             <RowSkeleton key={i} />
           ))}
         </div>
-      ) : rows.length === 0 && !activeVideo ? (
-        <p className="empty">
-          {submittedQuery
-            ? `No matches for “${submittedQuery}”.`
-            : 'Search songs, artists, or YouTube videos.'}
-        </p>
+      ) : error ? (
+        <p className="empty">Could not load that. Search again to retry.</p>
+      ) : tracks.length === 0 && submitted ? (
+        <p className="empty">No matches for “{submitted}”.</p>
+      ) : tracks.length === 0 ? (
+        <>
+          <p className="empty">Search songs, artists, or paste a YouTube link.</p>
+          {recent.length > 0 ? (
+            <div className="chips" style={{ marginTop: 12 }}>
+              {recent.map((q) => (
+                <button key={q} type="button" className="chip" onClick={() => runSearch(q)}>
+                  {q}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </>
       ) : (
         <div className="rows" style={{ marginTop: 12 }}>
-          {rows.map((result) => {
-            if (result.kind === 'youtube') {
-              const { video } = result
-              const track: Track = {
-                id: `youtube:${video.videoId}`,
-                title: video.title,
-                artist: video.channelTitle,
-                artworkUrl: video.thumbnailUrl,
-              }
-              return (
-                <TrackRow
-                  key={track.id}
-                  track={track}
-                  subtitle={`${video.channelTitle} · YouTube`}
-                  onSelect={() => setSelectedVideo(video)}
-                />
-              )
-            }
-
-            const index = tracks.findIndex((track) => track.id === result.track.id)
+          {groups.map((group) => {
+            const expanded = expandedGroups.has(group.primary.id)
             return (
-              <TrackRow
-                key={result.track.id}
-                track={result.track}
-                onSelect={() => onPlay(tracks, index)}
-              />
+              <Fragment key={group.primary.id}>
+                <TrackRow
+                  track={group.primary}
+                  onSelect={() => onPlay(tracks, group.primaryIndex)}
+                  right={<TrackMenu track={group.primary} />}
+                />
+                {group.alternates.length > 0 ? (
+                  <button
+                    type="button"
+                    className="row-expand"
+                    aria-expanded={expanded}
+                    onClick={() => toggleGroup(group.primary.id)}
+                  >
+                    <Icon name="chevron" size={14} />
+                    {expanded
+                      ? 'Hide other versions'
+                      : `${group.alternates.length} more version${group.alternates.length > 1 ? 's' : ''} found`}
+                  </button>
+                ) : null}
+                {expanded
+                  ? group.alternates.map(({ track, index }) => (
+                      <TrackRow
+                        key={track.id}
+                        track={track}
+                        onSelect={() => onPlay(tracks, index)}
+                        right={<TrackMenu track={track} />}
+                      />
+                    ))
+                  : null}
+              </Fragment>
             )
           })}
         </div>

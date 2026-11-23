@@ -6,6 +6,7 @@ export const TABS = [
   { id: 'library', label: 'Home', icon: 'home' },
   { id: 'search', label: 'Search', icon: 'search' },
   { id: 'radio', label: 'Radio', icon: 'radio' },
+  { id: 'playlists', label: 'Playlists', icon: 'playlist' },
   { id: 'downloads', label: 'Downloads', icon: 'download' },
   { id: 'settings', label: 'Settings', icon: 'settings' },
 ] as const satisfies readonly { id: string; label: string; icon: IconName }[]
@@ -23,7 +24,7 @@ export function TabBar({ tab, onChange }: { tab: TabId; onChange: (tab: TabId) =
           onClick={() => onChange(t.id)}
         >
           <Icon name={t.icon} size={23} />
-          {t.label}
+          <span>{t.label}</span>
         </button>
       ))}
     </nav>

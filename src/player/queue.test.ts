@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { identityOrder, nextPos, prevPos, shouldRecover, shuffledOrder } from './queue'
+import {
+  appendOrder,
+  identityOrder,
+  insertAfter,
+  moveOrder,
+  nextPos,
+  prevPos,
+  removeOrder,
+  shouldRecover,
+  shuffledOrder,
+} from './queue'
 
 /** Deterministic stand-in for Math.random. */
 function seeded(seed: number): () => number {
@@ -81,5 +91,57 @@ describe('shouldRecover', () => {
 
   it('skips a track that never started playing', () => {
     expect(shouldRecover(0, false)).toBe(false)
+  })
+})
+
+describe('insertAfter', () => {
+  it('inserts right after the given position, leaving everything before untouched', () => {
+    expect(insertAfter([5, 2, 8], 0, 9)).toEqual([5, 9, 2, 8])
+  })
+
+  it('appends when inserting after the last position', () => {
+    expect(insertAfter([5, 2, 8], 2, 9)).toEqual([5, 2, 8, 9])
+  })
+})
+
+describe('appendOrder', () => {
+  it('adds to the end', () => {
+    expect(appendOrder([5, 2], 9)).toEqual([5, 2, 9])
+  })
+})
+
+describe('moveOrder', () => {
+  it('moves an upcoming track to a later position', () => {
+    expect(moveOrder([5, 2, 8, 1], 0, 1, 3)).toEqual([5, 8, 1, 2])
+  })
+
+  it('moves an upcoming track to an earlier position', () => {
+    expect(moveOrder([5, 2, 8, 1], 0, 3, 1)).toEqual([5, 1, 2, 8])
+  })
+
+  it('refuses to move the currently playing position', () => {
+    expect(moveOrder([5, 2, 8], 1, 1, 2)).toEqual([5, 2, 8])
+  })
+
+  it('refuses to move something to before or at the current position', () => {
+    expect(moveOrder([5, 2, 8], 1, 2, 0)).toEqual([5, 2, 8])
+  })
+
+  it('ignores an out-of-range position instead of throwing', () => {
+    expect(moveOrder([5, 2, 8], 0, 1, 99)).toEqual([5, 2, 8])
+  })
+})
+
+describe('removeOrder', () => {
+  it('drops one upcoming position', () => {
+    expect(removeOrder([5, 2, 8, 1], 0, 2)).toEqual([5, 2, 1])
+  })
+
+  it('refuses to drop the currently playing position', () => {
+    expect(removeOrder([5, 2, 8], 1, 1)).toEqual([5, 2, 8])
+  })
+
+  it('ignores an out-of-range position instead of throwing', () => {
+    expect(removeOrder([5, 2, 8], 0, 99)).toEqual([5, 2, 8])
   })
 })

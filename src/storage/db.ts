@@ -2,7 +2,7 @@ import type { Lyrics, Track } from '../source/MusicSource'
 import type { RepeatMode } from '../player/PlayerEngine'
 
 export const DB_NAME = 'music-pwa'
-export const DB_VERSION = 1
+export const DB_VERSION = 2
 
 export type DownloadStatus = 'queued' | 'downloading' | 'done' | 'error'
 
@@ -30,6 +30,12 @@ export interface Playlist {
   trackIds: string[]
 }
 
+export interface HistoryRecord {
+  trackId: string
+  track: Track
+  playedAt: number
+}
+
 export interface PersistedPlayerState {
   queue: Track[]
   /** Play order as indices into `queue`; differs from queue order while shuffled. */
@@ -40,7 +46,15 @@ export interface PersistedPlayerState {
   repeat: RepeatMode
 }
 
-export type StoreName = 'tracks' | 'downloads' | 'lyrics' | 'blobs' | 'playlists' | 'downloadQueue' | 'state'
+export type StoreName =
+  | 'tracks'
+  | 'downloads'
+  | 'lyrics'
+  | 'blobs'
+  | 'playlists'
+  | 'downloadQueue'
+  | 'state'
+  | 'history'
 
 /** keyPath per store; null means the key is passed in explicitly. */
 const SCHEMA: Record<StoreName, string | null> = {
@@ -51,6 +65,9 @@ const SCHEMA: Record<StoreName, string | null> = {
   playlists: 'id',
   downloadQueue: 'jobId',
   state: null,
+  // keyed by trackId, not an auto-incrementing log entry, so playing the
+  // same song again moves it to the top instead of listing it twice
+  history: 'trackId',
 }
 
 let dbPromise: Promise<IDBDatabase> | null = null
@@ -124,6 +141,24 @@ export const getTrack = (id: string): Promise<Track | undefined> => idbGet<Track
 export const getLyrics = (trackId: string): Promise<Lyrics | undefined> => idbGet<Lyrics>('lyrics', trackId)
 export const saveLyrics = (trackId: string, lyrics: Lyrics): Promise<void> =>
   idbPut('lyrics', { trackId, ...lyrics })
+
+export const deleteLyrics = (trackId: string): Promise<void> => idbDelete('lyrics', trackId)
+
+/** shortcut: Blobs live in IndexedDB, not OPFS. iOS Safari stores them fine and
+ * one backend is one thing to get wrong; revisit if quota or write speed bites. */
+export const audioKey = (trackId: string): string => `audio:${trackId}`
+export const artworkKey = (trackId: string): string => `art:${trackId}`
+export const putBlob = (key: string, blob: Blob): Promise<void> => idbPut('blobs', blob, key)
+export const getBlob = (key: string): Promise<Blob | undefined> => idbGet<Blob>('blobs', key)
+export const deleteBlob = (key: string): Promise<void> => idbDelete('blobs', key)
+
+export const listDownloads = (): Promise<DownloadRecord[]> => idbGetAll<DownloadRecord>('downloads')
+export const saveDownload = (record: DownloadRecord): Promise<void> => idbPut('downloads', record)
+export const deleteDownload = (trackId: string): Promise<void> => idbDelete('downloads', trackId)
+
+export const listHistory = (): Promise<HistoryRecord[]> => idbGetAll<HistoryRecord>('history')
+export const saveHistory = (record: HistoryRecord): Promise<void> => idbPut('history', record)
+export const clearHistoryStore = (): Promise<void> => idbClear('history')
 
 export const PLAYER_STATE_KEY = 'player'
 export const savePlayerState = (state: PersistedPlayerState): Promise<void> =>

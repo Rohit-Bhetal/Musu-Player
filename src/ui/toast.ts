@@ -18,6 +18,7 @@ export function dismissToast(id: number): void {
 export function toast(message: string, action?: ToastItem['action']): number {
   const id = nextId++
   toasts.set([...toasts.get(), { id, message, action }])
-  if (!action) window.setTimeout(() => dismissToast(id), 4000)
+  // bare setTimeout, not window's: this runs from the download manager too
+  if (!action) setTimeout(() => dismissToast(id), 4000)
   return id
 }

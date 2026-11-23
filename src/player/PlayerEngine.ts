@@ -3,8 +3,21 @@ import { createStore, type Store } from '../ui/store'
 import { toast } from '../ui/toast'
 import { logEvent } from '../diagnostics'
 import { clearPlayerState, loadPlayerState, savePlayerState, saveTrack } from '../storage/db'
+import { recordPlay } from '../storage/history'
 import { attachMediaSession, setMediaMetadata, setMediaPlaybackState, setMediaPosition } from './mediaSession'
-import { identityOrder, nextPos, prevPos, shouldRecover, shuffledOrder, type RepeatMode } from './queue'
+import { pickCharacter, prepareMediaArtwork } from './mediaArtwork'
+import {
+  appendOrder,
+  identityOrder,
+  insertAfter,
+  moveOrder,
+  nextPos,
+  prevPos,
+  removeOrder,
+  shouldRecover,
+  shuffledOrder,
+  type RepeatMode,
+} from './queue'
 
 export type { RepeatMode }
 
@@ -42,6 +55,43 @@ export function currentTrackOf(state: PlayerState): Track | null {
   return i === undefined ? null : (state.queue[i] ?? null)
 }
 
+export interface UpcomingTrack {
+  track: Track
+  /** Position in `state.order` — what moveInQueue/removeFromQueue take. */
+  orderPos: number
+}
+
+/** Everything still ahead of the playhead, in play order — what "Up Next" shows. */
+export function upcomingOf(state: PlayerState): UpcomingTrack[] {
+  const upcoming: UpcomingTrack[] = []
+  for (let orderPos = state.index + 1; orderPos < state.order.length; orderPos += 1) {
+    const track = state.queue[state.order[orderPos] ?? -1]
+    if (track) upcoming.push({ track, orderPos })
+  }
+  return upcoming
+}
+
+const VOLUME_KEY = 'player:volume'
+
+/**
+ * iOS Safari ignores writes to HTMLMediaElement.volume — the hardware buttons
+ * own it there — so the control is only offered where setting it sticks.
+ */
+function volumeIsSettable(): boolean {
+  try {
+    const probe = new Audio()
+    probe.volume = 0.5
+    return probe.volume === 0.5
+  } catch {
+    return false
+  }
+}
+
+function savedVolume(): number {
+  const saved = Number(localStorage.getItem(VOLUME_KEY))
+  return Number.isFinite(saved) && saved >= 0 && saved <= 1 ? saved : 1
+}
+
 const SAVE_INTERVAL_MS = 5000
 const POSITION_INTERVAL_MS = 1000
 const PREV_RESTART_SEC = 3
@@ -61,11 +111,17 @@ export class PlayerEngine {
   readonly audio: HTMLAudioElement
   readonly state: Store<PlayerState> = createStore<PlayerState>(EMPTY)
   readonly progress: Store<Progress> = createStore<Progress>({ positionSec: 0, durationSec: 0 })
+  readonly volume: Store<number> = createStore<number>(1)
+  /** False on iPhone: see volumeIsSettable. */
+  readonly canSetVolume: boolean = volumeIsSettable()
 
   private readonly deps: PlayerDeps
   private current: ResolvedUrl | null = null
   private prepared: { trackId: string; resolved: ResolvedUrl } | null = null
   private artwork: ResolvedUrl | null = null
+  /** The blob URL of the last canvas-composited Lock Screen artwork handed to
+   * MediaSession, so it can be revoked once the next track replaces it. */
+  private mediaArtworkUrl: string | null = null
   private pendingSeek: number | null = null
   private failures = 0
   /** The track whose mid-playback error we already re-resolved once this episode. */
@@ -75,12 +131,19 @@ export class PlayerEngine {
     this.deps = deps
     this.audio = new Audio()
     this.audio.preload = 'auto'
+    if (this.canSetVolume) this.setVolume(savedVolume())
 
     const a = this.audio
     a.addEventListener('loadedmetadata', this.onLoadedMetadata)
     a.addEventListener('timeupdate', this.onTimeUpdate)
     a.addEventListener('playing', this.onPlaying)
-    a.addEventListener('pause', () => this.setPlaying(false))
+    // Not just a state flip: the periodic save below only runs while playing,
+    // so without this, pausing right after a seek/skip and reloading soon
+    // after could restore several seconds behind where playback actually was.
+    a.addEventListener('pause', () => {
+      this.setPlaying(false)
+      void this.save()
+    })
     a.addEventListener('waiting', () => this.patch({ loading: true }))
     a.addEventListener('ended', this.onEnded)
     a.addEventListener('error', this.onError)
@@ -98,7 +161,13 @@ export class PlayerEngine {
     window.setInterval(() => {
       if (this.state.get().playing) this.pushPosition()
     }, POSITION_INTERVAL_MS)
-    window.setInterval(() => void this.save(), SAVE_INTERVAL_MS)
+    // While paused, position never moves and nothing here changes — visibilitychange
+    // and pagehide below already cover "save before the state goes away", so a
+    // paused-and-idle session no longer structured-clones the whole queue to
+    // IndexedDB every 5 seconds for no reason, for as long as the tab stays open.
+    window.setInterval(() => {
+      if (this.state.get().playing) void this.save()
+    }, SAVE_INTERVAL_MS)
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) void this.save()
     })
@@ -127,6 +196,17 @@ export class PlayerEngine {
       index: s.shuffle ? 0 : start,
     })
     await this.goTo(this.state.get().index, true)
+  }
+
+  /** Jumps straight to an Up Next position (an `orderPos` from upcomingOf),
+   * keeping the rest of the queue intact — unlike playQueue, which replaces it. */
+  async playFromQueue(orderPos: number): Promise<void> {
+    const s = this.state.get()
+    if (orderPos < 0 || orderPos >= s.order.length) return
+    this.discardPrepared()
+    this.pendingSeek = null
+    this.failures = 0
+    await this.goTo(orderPos, true)
   }
 
   async play(): Promise<void> {
@@ -178,6 +258,18 @@ export class PlayerEngine {
     this.pushPosition()
   }
 
+  setVolume(level: number): void {
+    const next = Math.max(0, Math.min(1, level))
+    this.audio.volume = next
+    // read back, not the request: the element is the authority on what stuck
+    this.volume.set(this.audio.volume)
+    try {
+      localStorage.setItem(VOLUME_KEY, String(this.audio.volume))
+    } catch {
+      /* private mode, or storage full — a forgotten volume is not worth a toast */
+    }
+  }
+
   setShuffle(on: boolean): void {
     const s = this.state.get()
     if (s.shuffle === on) return
@@ -195,6 +287,48 @@ export class PlayerEngine {
 
   setRepeat(repeat: RepeatMode): void {
     this.patch({ repeat })
+    this.prepareNext()
+    void this.save()
+  }
+
+  /** Inserts right after whatever is currently playing — does not touch it. */
+  playNext(track: Track): void {
+    const s = this.state.get()
+    if (s.index < 0) {
+      void this.playQueue([track], 0)
+      return
+    }
+    const queue = [...s.queue, track]
+    this.state.set({ ...s, queue, order: insertAfter(s.order, s.index, queue.length - 1) })
+    this.prepareNext()
+    void this.save()
+  }
+
+  /** Appends to the end of the upcoming queue, same shuffle/repeat as now. */
+  addToQueue(track: Track): void {
+    const s = this.state.get()
+    if (s.index < 0) {
+      void this.playQueue([track], 0)
+      return
+    }
+    const queue = [...s.queue, track]
+    this.state.set({ ...s, queue, order: appendOrder(s.order, queue.length - 1) })
+    void this.save()
+  }
+
+  /** Reorders Up Next — `from`/`to` are both `orderPos` values from upcomingOf. */
+  moveInQueue(from: number, to: number): void {
+    const s = this.state.get()
+    this.state.set({ ...s, order: moveOrder(s.order, s.index, from, to) })
+    this.prepareNext()
+    void this.save()
+  }
+
+  /** Drops one upcoming track — `orderPos` from upcomingOf, never the one
+   * currently playing (Up Next only ever lists what hasn't played yet). */
+  removeFromQueue(orderPos: number): void {
+    const s = this.state.get()
+    this.state.set({ ...s, order: removeOrder(s.order, s.index, orderPos) })
     this.prepareNext()
     void this.save()
   }
@@ -287,27 +421,38 @@ export class PlayerEngine {
     this.progress.set({ positionSec: this.pendingSeek ?? 0, durationSec: track.durationSec ?? 0 })
     logEvent('player:track', `${track.title} — ${track.artist}`)
     void saveTrack(track).catch(() => undefined)
+    void recordPlay(track)
     await this.applyArtwork(track)
     this.prepareNext()
     void this.save()
   }
 
   private async applyArtwork(track: Track): Promise<void> {
-    // show something on the Lock Screen immediately, then upgrade if a stored
-    // blob turns out to be available
+    // show something on the Lock Screen immediately — raw, whatever its
+    // aspect ratio — then upgrade once a stored blob (if any) and the
+    // squared-and-character-badged composite are both ready.
     setMediaMetadata(track, track.artworkUrl ?? null)
     const previous = this.artwork
     this.artwork = null
     if (previous?.revoke) URL.revokeObjectURL(previous.url)
 
     const art = await this.deps.resolveArtwork(track).catch(() => null)
-    if (!art) return
     if (this.currentTrack?.id !== track.id) {
-      if (art.revoke) URL.revokeObjectURL(art.url)
+      if (art?.revoke) URL.revokeObjectURL(art.url)
       return
     }
     this.artwork = art
-    setMediaMetadata(track, art.url)
+
+    const baseUrl = art?.url ?? track.artworkUrl
+    if (!baseUrl) return
+    const composited = await prepareMediaArtwork(baseUrl, pickCharacter(track.id)).catch(() => baseUrl)
+    if (this.currentTrack?.id !== track.id) {
+      if (composited !== baseUrl) URL.revokeObjectURL(composited)
+      return
+    }
+    if (this.mediaArtworkUrl) URL.revokeObjectURL(this.mediaArtworkUrl)
+    this.mediaArtworkUrl = composited !== baseUrl ? composited : null
+    setMediaMetadata(track, composited)
   }
 
   /** Resolves the next song's URL early so 'ended' can switch with no awaits. */

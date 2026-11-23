@@ -61,7 +61,11 @@ export function setMediaMetadata(track: Track | null, artworkSrc: string | null)
       title: track.title,
       artist: track.artist,
       album: track.album ?? '',
-      artwork: artworkSrc ? [{ src: artworkSrc, sizes: '512x512', type: 'image/jpeg' }] : [],
+      // sizes/type are both optional, and were never accurate anyway — the
+      // raw "show something immediately" source is whatever the backend
+      // handed back (a YouTube thumbnail is 320x180 JPEG, not 512x512), and
+      // the composited upgrade is PNG. Omitted, the OS sniffs the real thing.
+      artwork: artworkSrc ? [{ src: artworkSrc }] : [],
     })
     logEvent('media:metadata', `${track.title} — ${artworkSrc ? artworkSrc.slice(0, 24) : 'no artwork'}`)
   } catch {

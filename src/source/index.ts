@@ -2,11 +2,9 @@ import type { MusicSource } from './MusicSource'
 import { apiSource } from './apiSource'
 
 /**
- * apiSource is Audius-only, live — see docs/MUSIC_SOURCE.md. Its Piped
- * fallback is kept in the file but disabled: googlevideo sends no CORS
- * headers on the audio bytes, so nothing from that path can ever be
- * downloaded for offline use, which rules it out regardless of the
- * YouTube-ToS question.
+ * One live source for every screen: Audius + YouTube + Radio Browser, told
+ * apart by an id prefix — see docs/MUSIC_SOURCE.md. youtube: ids need the
+ * extractor box behind /api/youtube/audio; the rest need nothing but network.
  *
  * P3-P5 (the download pipeline) may still be worth building/testing against
  * mockSource first — swap back to it here for that: deterministic, no network.

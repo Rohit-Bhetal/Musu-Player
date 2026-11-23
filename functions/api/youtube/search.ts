@@ -1,17 +1,42 @@
 interface Env {
   APP_ORIGIN?: string
   YOUTUBE_API_KEY?: string
+  /** Comma-separated countries for Home's chart rows, e.g. "IN,US,GB,KR".
+   * Unset means the listener's own country followed by CHART_REGION_DEFAULTS. */
+  CHART_REGIONS?: string
 }
 
 interface PagesContext {
-  request: Request
+  /** Cloudflare attaches the caller's country; absent under `wrangler pages dev`. */
+  request: Request & { cf?: { country?: string } }
   env: Env
 }
 
+/** Music. YouTube's category ids are global, so this one does not vary by region. */
+const MUSIC_CATEGORY = '10'
+const CHART_REGION_FALLBACK = 'US'
+/** Big, musically distinct markets, so Home is not four rows of the same songs. */
+const CHART_REGION_DEFAULTS = ['US', 'GB', 'KR', 'BR']
+/** One quota unit each, and four rows is already more than a thumb scrolls. */
+const MAX_CHART_REGIONS = 6
+const CHART_SIZE = '20'
+
+/** Which countries Home shows, the listener's own first and never twice. */
+function chartRegions(request: PagesContext['request'], env: Env): string[] {
+  const configured = env.CHART_REGIONS?.split(',')
+    .map((region) => region.trim().toUpperCase())
+    .filter((region) => /^[A-Z]{2}$/.test(region))
+
+  const wanted = configured?.length
+    ? configured
+    : [request.cf?.country ?? CHART_REGION_FALLBACK, ...CHART_REGION_DEFAULTS]
+
+  return [...new Set(wanted)].slice(0, MAX_CHART_REGIONS)
+}
+
 interface YouTubeApiSearchItem {
-  id?: {
-    videoId?: string
-  }
+  /** search.list nests the id; videos.list (the chart) returns it as a string. */
+  id?: string | { videoId?: string }
   snippet?: {
     title?: string
     channelTitle?: string
@@ -27,83 +52,35 @@ interface YouTubeApiSearchResponse {
   items?: YouTubeApiSearchItem[]
 }
 
-function jsonResponse(
-  body: unknown,
-  status: number,
-  origin: string,
-): Response {
+interface YouTubeVideo {
+  videoId: string
+  title: string
+  channelTitle: string
+  thumbnailUrl?: string
+}
+
+function jsonResponse(body: unknown, status: number, origin: string, maxAge = 60, shared = false): Response {
   return Response.json(body, {
     status,
     headers: {
       'Access-Control-Allow-Origin': origin,
-      'Cache-Control': 'private, max-age=60',
+      // The chart is the same response for every visitor in a region set, so
+      // it is the one response here Cloudflare's edge is allowed to share —
+      // `private` on it meant every single listener re-paid the 6-country,
+      // 6-quota-unit fan-out that the very first one had already settled.
+      'Cache-Control': shared ? `public, s-maxage=${maxAge}, max-age=60` : `private, max-age=${maxAge}`,
       Vary: 'Origin',
     },
   })
 }
 
-function getAllowedOrigin(request: Request, env: Env): string | null {
-  const appOrigin = env.APP_ORIGIN
-  if (!appOrigin) return null
+/** Charts move once a day, so Home costs nothing to revisit. */
+const CHART_MAX_AGE = 1800
 
-  const requestOrigin = request.headers.get('Origin')
-  if (new URL(request.url).origin !== appOrigin) return null
-  if (requestOrigin && requestOrigin !== appOrigin) return null
-
-  return appOrigin
-}
-
-export async function onRequestGet({ request, env }: PagesContext): Promise<Response> {
-  const origin = getAllowedOrigin(request, env)
-  if (!origin) return Response.json({ error: 'YouTube search is not configured for this origin.' }, { status: 403 })
-
-  const query = new URL(request.url).searchParams.get('q')?.trim() ?? ''
-  if (query.length < 2 || query.length > 100) {
-    return jsonResponse({ error: 'Search text must be between 2 and 100 characters.' }, 400, origin)
-  }
-  if (!env.YOUTUBE_API_KEY) {
-    return jsonResponse({ error: 'YouTube title search requires a server-side API key.' }, 503, origin)
-  }
-
-  const upstreamUrl = new URL('https://www.googleapis.com/youtube/v3/search')
-  upstreamUrl.search = new URLSearchParams({
-    part: 'snippet',
-    type: 'video',
-    videoEmbeddable: 'true',
-    maxResults: '10',
-    safeSearch: 'moderate',
-    q: query,
-    key: env.YOUTUBE_API_KEY,
-  }).toString()
-
-  let upstream: Response
-  try {
-    upstream = await fetch(upstreamUrl, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(10_000),
-    })
-  } catch {
-    return jsonResponse({ error: 'YouTube search could not be reached.' }, 502, origin)
-  }
-
-  if (!upstream.ok) {
-    return jsonResponse(
-      { error: `YouTube search failed (${upstream.status}). Check the API key and quota.` },
-      502,
-      origin,
-    )
-  }
-
-  let data: YouTubeApiSearchResponse
-  try {
-    data = (await upstream.json()) as YouTubeApiSearchResponse
-  } catch {
-    return jsonResponse({ error: 'YouTube returned an invalid search response.' }, 502, origin)
-  }
-
-  const items = (data.items ?? [])
-    .map((item) => {
-      const videoId = item.id?.videoId
+function toVideos(data: YouTubeApiSearchResponse): YouTubeVideo[] {
+  return (data.items ?? [])
+    .map((item): YouTubeVideo | null => {
+      const videoId = typeof item.id === 'string' ? item.id : item.id?.videoId
       const title = item.snippet?.title
       const channelTitle = item.snippet?.channelTitle
       if (!videoId || !title || !channelTitle) return null
@@ -118,9 +95,102 @@ export async function onRequestGet({ request, env }: PagesContext): Promise<Resp
           item.snippet?.thumbnails?.default?.url,
       }
     })
-    .filter((item): item is NonNullable<typeof item> => item !== null)
+    .filter((item): item is YouTubeVideo => item !== null)
+}
 
-  return jsonResponse({ items }, 200, origin)
+async function youtubeGet(url: URL): Promise<YouTubeApiSearchResponse> {
+  const upstream = await fetch(url, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(10_000),
+  })
+  if (!upstream.ok) throw new Error(`YouTube responded ${upstream.status}`)
+  return (await upstream.json()) as YouTubeApiSearchResponse
+}
+
+function chartUrl(region: string, key: string): URL {
+  const url = new URL('https://www.googleapis.com/youtube/v3/videos')
+  url.search = new URLSearchParams({
+    part: 'snippet',
+    chart: 'mostPopular',
+    videoCategoryId: MUSIC_CATEGORY,
+    regionCode: region,
+    maxResults: CHART_SIZE,
+    key,
+  }).toString()
+  return url
+}
+
+// APP_ORIGIN can be a comma-separated list — dev often means more than one
+// (localhost plus whatever a port-forward or a phone-on-LAN actually shows up
+// as), and a single fixed value turned every one of those into a silent 403.
+function getAllowedOrigin(request: Request, env: Env): string | null {
+  const configured = (env.APP_ORIGIN ?? '').split(',').map((o) => o.trim()).filter(Boolean)
+  if (configured.length === 0) return null
+
+  const requestOrigin = new URL(request.url).origin
+  if (!configured.includes(requestOrigin)) return null
+  const headerOrigin = request.headers.get('Origin')
+  if (headerOrigin && !configured.includes(headerOrigin)) return null
+
+  return requestOrigin
+}
+
+export async function onRequestGet({ request, env }: PagesContext): Promise<Response> {
+  const origin = getAllowedOrigin(request, env)
+  if (!origin) return Response.json({ error: 'YouTube search is not configured for this origin.' }, { status: 403 })
+
+  const params = new URL(request.url).searchParams
+  const wantsChart = params.get('chart') === 'music'
+  const query = params.get('q')?.trim() ?? ''
+  if (!wantsChart && (query.length < 2 || query.length > 100)) {
+    return jsonResponse({ error: 'Search text must be between 2 and 100 characters.' }, 400, origin)
+  }
+  if (!env.YOUTUBE_API_KEY) {
+    return jsonResponse({ error: 'YouTube needs a server-side API key.' }, 503, origin)
+  }
+
+  // Home browses the charts: one request from the phone, fanned out here, at
+  // 1 quota unit per country against search.list's 100 for a single search.
+  if (wantsChart) {
+    const key = env.YOUTUBE_API_KEY
+    const settled = await Promise.allSettled(
+      chartRegions(request, env).map(async (region) => ({
+        region,
+        items: toVideos(await youtubeGet(chartUrl(region, key))),
+      })),
+    )
+    // One country being unavailable is not a reason to show an empty Home.
+    const sections = settled
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value)
+      .filter((section) => section.items.length > 0)
+
+    if (sections.length === 0) {
+      return jsonResponse({ error: 'YouTube charts are unavailable. Check the API key and quota.' }, 502, origin)
+    }
+    // Edge-shareable only when CHART_REGIONS is fixed: otherwise the region
+    // list follows each visitor's own country, and a cached response would
+    // serve one visitor's chart to everyone else behind the same cache.
+    const fixedRegions = Boolean(env.CHART_REGIONS?.trim())
+    return jsonResponse({ sections }, 200, origin, CHART_MAX_AGE, fixedRegions)
+  }
+
+  const searchUrl = new URL('https://www.googleapis.com/youtube/v3/search')
+  searchUrl.search = new URLSearchParams({
+    part: 'snippet',
+    type: 'video',
+    videoEmbeddable: 'true',
+    maxResults: '10',
+    safeSearch: 'moderate',
+    q: query,
+    key: env.YOUTUBE_API_KEY,
+  }).toString()
+
+  try {
+    return jsonResponse({ items: toVideos(await youtubeGet(searchUrl)) }, 200, origin)
+  } catch {
+    return jsonResponse({ error: 'YouTube search failed. Check the API key and quota.' }, 502, origin)
+  }
 }
 
 export function onRequest(): Response {

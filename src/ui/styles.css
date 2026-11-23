@@ -1,43 +1,135 @@
+/* =========================================================================
+   Convx design system, translated to CSS.
+
+   Source of truth: the Convx Android app (Jetpack Compose). Values below are
+   lifted from its token objects rather than eyeballed, so they can be checked:
+
+     ConvxDesignTokens.Colors    -> the dark neutrals (#121212 / #1C1C1E / ...)
+     ConvxDesignTokens.Metrics   -> gutters, gaps and the four corner radii
+     ConvxDesignTokens.Type      -> the pinned type scale (34/22/15/13/12)
+     ConvxDesignTokens.Glass     -> blur, saturation and tint opacity
+     IosColors.lightIosColors()  -> the light palette (iOS system colors)
+     IosColors.darkIosColors()   -> the dark palette
+     AppleTokens.Motion          -> SwiftUI .smooth / .snappy / .fade
+
+   Convx's accent is a themeable slot (LocalAccentColor, DefaultThemeColor):
+   the neutrals are fixed and only the accent moves. Ours is the brand violet
+   from assets/logo.png instead of Convx's own #FA2D48.
+   ========================================================================= */
+
 :root {
-  --bg: #fbfbfd;
-  --surface: #ffffff;
-  --surface-2: #e9e9ee;
-  --dock: #f4f4f7d9;
-  --text: #0b0b0f;
-  --muted: #6b6b72;
-  --accent: #3b6ef5;
+  /* -- palette: iOS light system colors (IosColors.lightIosColors) -------- */
+  --bg: #f2f2f7; /* systemGroupedBackground */
+  --surface: #ffffff; /* secondarySystemGroupedBackground */
+  --surface-2: #e5e5ea; /* systemGray5 */
+  --surface-3: #f2f2f7; /* systemGray6 */
+  --text: #000000; /* label */
+  --muted: #3c3c4399; /* secondaryLabel, 60% */
+  --faint: #3c3c434d; /* tertiaryLabel, 30% */
+  --border: #3c3c4349; /* separator */
+  --fill: #78788033; /* systemFill */
+  --fill-2: #78788028; /* secondarySystemFill */
+  --fill-3: #7676801e; /* tertiarySystemFill */
+  --danger: #ff3b30; /* systemRed */
+
+  /* Brand accent. --accent fills controls; --accent-text is the same hue
+     pushed to a readable lightness, exactly the split Convx draws between
+     LocalAccentColor and LocalAccentTextColor (accentTextColor()). */
+  --accent: #9b14f5;
+  --accent-text: #61079d; /* hsl(276 92% 32%) — the on-light clamp */
   --on-accent: #ffffff;
-  --border: #0000001a;
-  --skeleton: #00000010;
+
+  --skeleton: #7878801f;
   color-scheme: light dark;
 
-  /* RESPONSIVE ADDITION */
-  /* Content cap. --gutter is the leftover half-width, so padding alone centres
-     content while the scroll container stays full-bleed (wheel works anywhere).
+  /* -- metrics (ConvxDesignTokens.Metrics) -------------------------------- */
+  --gutter-x: 20px; /* ContentGutter */
+  --item-gap: 16px; /* ItemGap */
+  --section-gap: 24px; /* SectionGap */
+  --text-gap: 2px; /* TextGap */
+  --row-inset: 16px; /* ListRowInset */
+
+  /* Four corners, no more — AppleTokens' whole shape vocabulary. */
+  --r-art: 8px; /* ArtworkCorner */
+  --r-ctl: 8px; /* Control */
+  --r-card: 14px; /* CardCorner */
+  --r-card-lg: 18px; /* LargeCardCorner */
+  /* The floating bars are CAPSULES (r = height/2), not rounded rectangles.
+     Everything else is a plain rrect: ContinuousRoundedRectangle.createOutline
+     returns Outline.Rounded, so Convx's squircle is only ever real on the
+     capsule-ended nav/mini pills — which CSS gets for free. */
+  --r-nav: 34px; /* NavBarRowHeight 68 / 2 */
+  --r-mini: 32px; /* MiniPlayerHeight 64 / 2 */
+
+  /* -- motion (AppleTokens.Motion) ---------------------------------------- */
+  /* SwiftUI .smooth: 0.5s natural period, zero bounce. A critically damped
+     spring has no CSS equivalent, so this is its usual bezier approximation. */
+  --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-snappy: cubic-bezier(0.2, 0.9, 0.2, 1.06); /* .snappy, bounce 0.15 */
+  --dur-smooth: 0.42s;
+  --dur-fade: 0.2s; /* Motion.fade() = tween(200ms) */
+
+  /* -- glass (ConvxDesignTokens.Glass) ------------------------------------ */
+  /* NavBarSaturationLight = 1.50. The blur radius is the one translation that
+     cannot be literal: Convx's 3dp is a lens-shader input, not a Gaussian
+     sigma, so this is matched to the reference screenshots instead. */
+  --blur: saturate(150%) blur(20px);
+  /* SurfaceBaseLight #F5F5F7 @ 0.40, over the nav pill fill opacity 0.68. */
+  --glass: #f5f5f7ad;
+  --glass-strong: #f5f5f7d6;
+  /* EdgeHighlightWidth 0.8dp; neutral light rim alpha 0.40. */
+  --glass-hi: #ffffff66;
+  /* GlassTintTokens light: "0 4px 16px rgba(0,0,0,0.12)". */
+  --glass-shadow: 0 4px 16px #0000001f;
+  --glass-border: #00000014; /* light hairline rgba(0,0,0,0.08) */
+  /* Puck fill behind the selected tab: Black @ 0.10 light, White @ 0.10 dark. */
+  --puck: #0000001a;
+  /* LocalMetadataColor — iOS systemGray, the row-subtitle colour in both themes. */
+  --metadata: #8e8e93;
+
+  /* RESPONSIVE: content cap. --gutter is the leftover half-width, so padding
+     alone centres content while the scroll container stays full-bleed.
      Resolves to 0 below --maxw, so phones are untouched. */
   --maxw: 760px;
   --gutter: max(0px, calc((100% - var(--maxw)) / 2));
 
-  /* GLASS ADDITION */
-  /* One translucent fill and one blur recipe for every frosted surface. Both are
-     derived from the palette, so the dark block below re-points them for free and
-     --border stays the glass edge. color-mix needs iOS 16.2+; older WebKit just
-     drops the fill and the control keeps its rim. */
-  --glass: color-mix(in srgb, var(--surface) 55%, transparent);
-  --blur: saturate(180%) blur(20px);
+  /* Height the floating dock reserves at the bottom of every screen. The dock
+     is fixed (content scrolls under its glass), so nothing else can measure
+     it — see .app.has-mini for the taller variant. */
+  --dock-h: calc(68px + 8px + env(safe-area-inset-bottom));
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b0b0f;
-    --surface: #17171d;
-    --surface-2: #2a2a2a;
-    --dock: #141419d9;
-    --text: #ffffff;
-    --muted: #a0a0a8;
-    --accent: #618dff;
-    --border: #ffffff1a;
-    --skeleton: #ffffff12;
+    /* ConvxDesignTokens.Colors + IosColors.darkIosColors() */
+    --bg: #121212; /* Colors.Background — soft dark grey, not pure black */
+    --surface: #1c1c1e; /* Colors.Card / systemGray6 */
+    --surface-2: #2c2c2e; /* Colors.CardSecondary / systemGray5 */
+    --surface-3: #1a1a1a; /* Colors.BackgroundElevated */
+    --text: #ffffff; /* label */
+    --muted: #ebebf5b3; /* secondaryLabel, 70% */
+    --faint: #ebebf54d; /* tertiaryLabel */
+    --border: #54545899; /* separator */
+    --fill: #7878805c;
+    --fill-2: #78788052;
+    --fill-3: #7676803d;
+    --danger: #ff453a; /* systemRed, dark */
+
+    --accent: #9b14f5;
+    --accent-text: #c576f9; /* hsl(276 92% 72%) — the on-dark clamp */
+
+    --skeleton: #ebebf51f;
+    /* NavBarSaturationDark = 1.70. */
+    --blur: saturate(170%) blur(20px);
+    /* BaseSurfaceOpacityDark = White @ 0.15 lifting a 0.55 surface fill —
+       dark glass lifts toward white rather than simply thinning, or it
+       disappears into the background it sits on. */
+    --glass: color-mix(in srgb, #ffffff 15%, #1c1c1e8c);
+    --glass-strong: color-mix(in srgb, #ffffff 15%, #1c1c1ed9);
+    --glass-hi: #ffffff4d; /* neutral dark rim alpha 0.30 */
+    --glass-shadow: 0 8px 24px #00000059;
+    --glass-border: #ffffff1f; /* dark hairline rgba(255,255,255,0.12) */
+    --puck: #ffffff1a;
   }
 }
 
@@ -56,7 +148,9 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 400 16px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* -apple-system IS SF Pro on iOS, which is the family Convx ships
+     (SfProFontFamily). No webfont to download. */
+  font: 400 16px/1.45 -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
 }
@@ -83,6 +177,12 @@ input {
   overflow: hidden;
 }
 
+/* The mini player is a second floating pill above the tab bar, so the dock is
+   taller whenever something is playing. App.tsx sets this class. */
+.app.has-mini {
+  --dock-h: calc(68px + 64px + 8px + 8px + env(safe-area-inset-bottom));
+}
+
 .screen {
   flex: 1 1 auto;
   min-height: 0;
@@ -90,37 +190,54 @@ input {
   -webkit-overflow-scrolling: touch;
   /* longhands, not the 4-value shorthand: its top/right/bottom/left order is
      easy to pair up wrong with inset-left/inset-right */
-  padding-block: calc(env(safe-area-inset-top) + 10px) 28px;
-  /* RESPONSIVE ADDITION: var(--gutter) added to the inline padding */
+  padding-block: calc(env(safe-area-inset-top) + 8px) calc(var(--dock-h) + 24px);
   /* Named so .strip can cancel exactly this much and bleed to the screen edges. */
-  --pad-l: max(env(safe-area-inset-left), 16px, var(--gutter));
-  --pad-r: max(env(safe-area-inset-right), 16px, var(--gutter));
+  --pad-l: max(env(safe-area-inset-left), var(--gutter-x), var(--gutter));
+  --pad-r: max(env(safe-area-inset-right), var(--gutter-x), var(--gutter));
   padding-inline: var(--pad-l) var(--pad-r);
 }
 
+/* Convx's bottom chrome floats clear of the screen edge and content scrolls
+   under its glass, so the dock paints nothing itself. */
 .dock {
-  flex: 0 0 auto;
-  background: var(--dock);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  border-top: 1px solid var(--border);
-  padding-bottom: env(safe-area-inset-bottom);
-  /* RESPONSIVE ADDITION: bar stays full-bleed, mini player + tabs align with content */
-  padding-inline: var(--gutter);
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px; /* navbar component spacing */
+  pointer-events: none; /* the gap between the two pills is not a dead zone */
+  padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
+  padding-inline: max(env(safe-area-inset-left), var(--gutter-x))
+    max(env(safe-area-inset-right), var(--gutter-x));
 }
 
+/* FloatingNavBar max width = 500dp. */
+.dock > * {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 500px;
+}
+
+/* iOS large title (34/41, tracking +0.37) — AppleTokens.TitleLarge. */
 h1 {
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  margin: 8px 0 16px;
+  font-size: 34px;
+  line-height: 41px;
+  font-weight: 700;
+  letter-spacing: 0.37px;
+  margin: 2px 0 var(--item-gap);
 }
 
+/* AppleTokens.SectionHeader, 22/28. */
 h2 {
-  font-size: 20px;
+  font-size: 22px;
+  line-height: 28px;
   font-weight: 700;
-  letter-spacing: -0.01em;
-  margin: 24px 0 10px;
+  letter-spacing: 0.35px;
+  margin: var(--section-gap) 0 10px;
 }
 
 .muted {
@@ -131,31 +248,191 @@ h2 {
   color: var(--muted);
   text-align: center;
   padding: 48px 16px;
+  font-size: 15px;
+}
+
+/* --------------------------------------------------------- brand mark -- */
+
+/* The nav-title row above the large title: Convx's wordmark slot. */
+/* Brand row sits directly above the greeting as one header block, not two
+   competing lines — margin-bottom:0 here, h1's own top margin does the join. */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 22px;
+  margin-bottom: 0;
+}
+
+/* Flat glyph in a quiet accent-tinted disc — minimal, theme-aware, no gradient
+   and no white-disc backing hack the old raster logo needed to stay legible. */
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 50%;
+}
+
+.brand-name {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* a little flipbook beside the title, a frame every 2.6s, bobbing in between
+   so it reads as alive rather than a swapped static glyph */
+.mascot {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.mascot-frame {
+  display: inline-block;
+  animation:
+    mascot-in 0.5s ease-out,
+    mascot-bob 1.6s ease-in-out 0.5s infinite;
+}
+
+@keyframes mascot-in {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+}
+
+@keyframes mascot-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1.5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot-frame {
+    animation: none;
+  }
+}
+
+/* small dot on the right of the topbar: green online, red offline */
+.status-pill {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-left: auto;
+  flex: 0 0 auto;
+  background: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent);
+}
+
+.status-pill.online {
+  background: #34c759; /* iOS systemGreen, both themes */
+  box-shadow: 0 0 0 3px color-mix(in srgb, #34c759 18%, transparent);
+}
+
+/* ----------------------------------------------- section header + chevron -- */
+
+/* PageMetrics.chevronHeaders: a tappable section header carries Apple Music's
+   inline chevron after its title instead of a "See All" link. */
+/* AppPage rhythm: header -> row = 16dp (headerBottom 6 + ItemSpacing 10),
+   row -> next header = 24dp (SectionGap 14 + ItemSpacing 10). */
+.sec-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 24px 0 16px;
+}
+
+.sec-head h2 {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sec-chevron {
+  flex: 0 0 auto;
+  color: var(--muted); /* onSurfaceVariant */
+  transform: translateY(2px);
+}
+
+/* The trailing section action ("Play all"): 15/20, Normal, 60% ink. */
+.sec-count {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 15px;
+  line-height: 20px;
+  letter-spacing: -0.23px;
+  font-weight: 400;
+  color: var(--muted);
 }
 
 /* ------------------------------------------------------------ tab bar -- */
 
+/* FloatingNavBar: a glass capsule inset from the screen edge, with a filled
+   "puck" behind the selected tab rather than a tint on the icon alone. */
 .tabbar {
   display: flex;
+  align-items: center;
+  gap: 0; /* tab spacing = 0dp; the puck is what separates them */
+  height: 68px; /* NavBarRowHeight */
+  padding: 4px; /* tabBarContentPadding */
+  border-radius: var(--r-nav);
+  background: var(--glass-strong);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
 }
 
 .tabbar button {
-  flex: 1;
-  min-height: 52px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 60px; /* rowHeight - 8 */
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 3px;
-  padding: 6px 0;
-  color: var(--muted);
+  gap: 2px; /* icon -> label */
+  padding: 6px 4px;
+  border-radius: 30px; /* ContinuousCapsule: minDimension / 2 */
+  color: var(--text);
+  opacity: 0.82; /* unselected onSurface alpha */
   font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  line-height: 12px;
+  font-weight: 500;
+  transition: color var(--dur-fade) ease-in-out, background var(--dur-fade) ease-in-out,
+    opacity var(--dur-fade) ease-in-out, transform var(--dur-fade) var(--ease-snappy);
 }
 
+.tabbar button:active {
+  transform: scale(0.94);
+}
+
+.tabbar button span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the puck: White @ 0.10 dark / Black @ 0.10 light, behind the selected tab */
 .tabbar button[aria-current='page'] {
-  color: var(--text);
+  background: var(--puck);
+  color: var(--accent-text);
+  opacity: 1;
+  font-weight: 700;
 }
 
 /* ------------------------------------------------------------- lists --- */
@@ -170,7 +447,24 @@ h2 {
   align-items: center;
   gap: 4px;
   width: 100%;
-  min-height: 56px;
+  min-height: 58px; /* Dimensions.ListItemHeight = 48 art + 5 + 5 */
+}
+
+.rows .row {
+  position: relative;
+}
+
+/* AppleTokens.divider: a hairline of the content colour at 12%, inset past the
+   artwork so the rule starts where the text does (Convx insets it by
+   gutter + thumb + art; here that lands at the text column, 60px in). */
+.rows .row + .row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 60px;
+  right: 0;
+  border-top: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  pointer-events: none;
 }
 
 .row-main {
@@ -178,15 +472,16 @@ h2 {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 56px;
-  padding: 4px 2px;
+  gap: 10px; /* 4dp thumbnail end + 6dp text column = 10dp */
+  min-height: 58px;
+  padding: 5px 2px;
   text-align: left;
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
+  transition: background var(--dur-fade) ease-in-out;
 }
 
 .row-main:active {
-  background: var(--surface-2);
+  background: color-mix(in srgb, var(--text) 10%, transparent);
 }
 
 .row-main:disabled {
@@ -198,20 +493,26 @@ h2 {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px; /* listrow title <-> subtitle */
 }
 
+/* Type.ItemTitle 15/20 */
 .row-title {
   font-size: 15px;
+  line-height: 20px;
   font-weight: 600;
+  letter-spacing: -0.23px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* Type.ItemSubtitle 13/18 */
 .row-sub {
   font-size: 13px;
-  color: var(--muted);
+  line-height: 18px;
+  letter-spacing: -0.08px;
+  color: var(--metadata);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -228,14 +529,43 @@ h2 {
   height: 44px;
   display: grid;
   place-items: center;
+  border-radius: 22px;
   color: var(--muted);
+  transition: background var(--dur-fade) ease-in-out;
+}
+
+.row-action:active {
+  background: var(--fill-3);
+}
+
+/* a search result's "N more versions" disclosure — lined up under the row's
+   own text column (60px, same inset the divider hairline uses) */
+.row-expand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 4px 2px 8px 60px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.row-expand svg {
+  transition: transform var(--dur-fade) ease-in-out;
+}
+
+.row-expand[aria-expanded='true'] svg {
+  transform: rotate(180deg);
 }
 
 /* ----------------------------------------------------------- artwork --- */
 
 .art {
   flex: 0 0 auto;
-  border-radius: 8px;
+  border-radius: var(--r-art); /* Metrics.ArtworkCorner */
   background: var(--surface-2);
   object-fit: cover;
   display: block;
@@ -252,23 +582,36 @@ h2 {
 }
 
 .chips::-webkit-scrollbar,
-.strip::-webkit-scrollbar {
+.strip::-webkit-scrollbar,
+.hero-strip::-webkit-scrollbar {
   display: none;
 }
 
 .chip {
   flex: 0 0 auto;
-  min-height: 36px;
-  padding: 8px 16px;
+  min-height: 40px;
+  padding: 9px 18px;
   border-radius: 999px;
-  background: var(--surface-2);
-  font-size: 14px;
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-border);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 20px;
   font-weight: 600;
+  letter-spacing: -0.23px;
   white-space: nowrap;
+  transition: background var(--dur-fade) ease-in-out, color var(--dur-fade) ease-in-out;
 }
 
-.chip[aria-pressed='true'] {
+/* rememberGlobalAccentColors(): a selected pill takes the accent container
+   and the contrast-picked content color. */
+.chip[aria-pressed='true'],
+.chip[aria-checked='true'],
+.chip.on {
   background: var(--accent);
+  border-color: transparent;
   color: var(--on-accent);
 }
 
@@ -277,7 +620,7 @@ h2 {
 /* Same flex + overflow-x + hidden-scrollbar technique as .chips above. */
 .strip {
   display: flex;
-  gap: 12px;
+  gap: var(--item-gap);
   overflow-x: auto;
   scrollbar-width: none;
   padding-bottom: 4px;
@@ -289,17 +632,20 @@ h2 {
 
 .tile {
   flex: 0 0 auto;
-  width: 148px;
+  width: 154px; /* home shelf card artwork */
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px;
-  border-radius: 14px;
+  gap: 7px;
   text-align: left;
 }
 
-.tile:active {
-  background: var(--surface-2);
+.tile .art,
+.tile .skel-art {
+  transition: transform var(--dur-smooth) var(--ease-smooth);
+}
+
+.tile:active .art {
+  transform: scale(0.96);
 }
 
 .tile-title,
@@ -307,56 +653,183 @@ h2 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding-inline: 2px;
 }
 
 .tile-title {
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 20px;
   font-weight: 600;
+  letter-spacing: -0.23px;
 }
 
 .tile-sub {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.08px;
+  color: var(--metadata);
+  margin-top: var(--text-gap);
+}
+
+/* ------------------------------------------------------- hero carousel -- */
+
+/* FigmaTopPickCard's rail: 16dp content padding, 10dp between cards.
+   Neighbours deliberately peek at both edges — that is what makes it read as
+   a carousel rather than a list. */
+.hero-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+  margin-inline: calc(-1 * var(--pad-l)) calc(-1 * var(--pad-r));
+  padding-inline: max(16px, var(--pad-l)) max(16px, var(--pad-r));
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: max(16px, var(--pad-l)) max(16px, var(--pad-r));
+}
+
+/* 242 x 323dp, 20dp corner, elevation 20 with black @ 0.16. Narrow phones get
+   a viewport-relative width rather than a card wider than the screen. */
+.hero-card {
+  flex: 0 0 auto;
+  width: min(242px, 72vw);
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 12px 28px #00000029;
+  text-align: center;
+  scroll-snap-align: center;
+  transition: transform var(--dur-smooth) var(--ease-smooth);
+}
+
+.hero-card:active {
+  transform: scale(0.97);
+}
+
+.hero-card .art {
+  width: 100%;
+  border-radius: 0;
+}
+
+/* The caption strip is not a surface: Convx fills it with the SAME artwork,
+   flipped vertically, blurred, and multiplied by #C7C7C7 — so it reads as the
+   cover continuing past its own edge. The text is always white on top. */
+.hero-cap {
+  position: relative;
+  flex: 0 0 auto;
+  height: 81px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--text-gap);
+  padding: 0 8px;
+  overflow: hidden;
+  background: #3a3a3a; /* shows through while the mirrored copy decodes */
+  color: #ffffff;
+}
+
+.hero-cap img {
+  position: absolute;
+  inset: -45% 0 auto;
+  width: 100%;
+  z-index: 0;
+  transform: scaleY(-1);
+  filter: blur(14px) brightness(0.78) saturate(1.1);
+  pointer-events: none;
+}
+
+.hero-cap > span {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+}
+
+.hero-title {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+  letter-spacing: -0.23px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px #00000059;
+}
+
+.hero-sub {
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.08px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 3px #00000059;
 }
 
 /* ------------------------------------------------------------ search --- */
 
+/* one pill holding the magnifier, the field and the clear button, so the bar
+   keeps its full width instead of giving a third of it to a submit button */
 .search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   min-height: 44px;
-  padding: 10px 14px;
+  padding: 0 12px;
   border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
+  border: 1px solid transparent;
+  background: var(--fill-3);
+  color: var(--muted);
+  transition: background var(--dur-fade) ease-in-out;
+}
+
+.search-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 42px;
+  border: 0;
+  background: none;
   color: var(--text);
+  font-size: 17px; /* iOS zooms the page in on anything smaller */
+  letter-spacing: -0.43px;
+}
+
+.search-field input::placeholder {
+  color: var(--faint);
+}
+
+.search-field input:focus {
+  outline: none;
+}
+
+/* the whole pill lights up, not the bare input inside it */
+.search-field:focus-within {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Safari draws its own clear button on type=search; ours is the accessible one */
+.search-field input::-webkit-search-decoration,
+.search-field input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.search-clear {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--muted);
 }
 
 .search-form {
-  display: flex;
-  gap: 8px;
   margin-bottom: 12px;
-}
-
-.search-form .search-field {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.search-submit {
-  flex: 0 0 auto;
-  min-height: 44px;
-  padding: 0 16px;
-  border-radius: 10px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.search-submit:focus-visible,
-.search-form .search-field:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
 }
 
 .search-provider-error {
@@ -365,74 +838,19 @@ h2 {
   font-size: 13px;
 }
 
-.yt-result-player {
-  margin: 16px 0;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-top: 2px solid #ff0033;
-  border-radius: 12px;
-  background: var(--surface);
-}
-
-.yt-result-meta {
-  padding: 12px 14px 10px;
-}
-
-.yt-result-kicker {
-  margin: 0 0 4px;
-  color: #e6002e;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
-
-.yt-result-meta h2 {
-  overflow: hidden;
-  margin: 0;
-  font-size: 17px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.yt-result-channel,
-.yt-result-status,
-.yt-result-error {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.yt-result-frame {
-  width: 100%;
-  min-height: 200px;
-  aspect-ratio: 16 / 9;
-  overflow: hidden;
-  background: #000;
-}
-
-.yt-result-mount,
-.yt-result-mount iframe {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border: 0;
-}
-
-.yt-result-status,
-.yt-result-error {
-  padding: 0 14px 12px;
-}
-
-.yt-result-error {
-  color: #c62828;
-}
-
 /* ---------------------------------------------------------- settings --- */
 
+/* An iOS inset grouped list: cards on the grouped background. Same glass
+   recipe as the dock/sheet, so a settled surface reads consistently with a
+   floating one rather than switching to flat colour the moment it stops
+   moving. */
 .card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-card);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
   overflow: hidden;
 }
 
@@ -443,39 +861,66 @@ h2 {
   gap: 12px;
   width: 100%;
   min-height: 48px;
-  padding: 10px 14px;
+  padding: 10px var(--row-inset);
   text-align: left;
+  font-size: 17px;
+  letter-spacing: -0.43px;
 }
 
+/* inset separator: iOS starts the rule at the content, not the card edge */
 .card-row + .card-row {
   border-top: 1px solid var(--border);
 }
 
 .card-row .value {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
+  letter-spacing: -0.23px;
   text-align: right;
 }
 
 /* ------------------------------------------------------- mini player --- */
 
+/* FloatingMiniPlayer: a detached glass capsule above the tab bar, not a strip
+   welded to it. It carries its own blur because the dock no longer has one. */
 .mini {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding-block: 6px;
-  padding-inline: max(env(safe-area-inset-left), 10px) max(env(safe-area-inset-right), 10px);
-  border-bottom: 1px solid var(--border);
+  gap: 0;
+  height: 64px; /* Metrics.MiniPlayerHeight */
+  padding: 8px 12px; /* row padding v8 / h12 */
+  border-radius: var(--r-mini); /* capsule */
+  overflow: hidden;
+  background: var(--glass-strong);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  transform: translateY(0);
+  opacity: 1;
+  transition: transform var(--dur-smooth) var(--ease-smooth), opacity var(--dur-fade) ease-in-out;
+}
+
+/* Settings > "Hide mini player when paused": tucked below the dock rather
+   than unmounted, so the tab bar never has to jump — see App.tsx's hasMini. */
+.mini-tucked {
+  transform: translateY(calc(100% + 12px));
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini {
+    transition: none;
+  }
 }
 
 .mini-progress {
   position: absolute;
-  top: 0;
+  bottom: 0;
   left: 0;
   height: 2px;
-  background: var(--accent);
-  border-radius: 0 2px 2px 0;
+  background: var(--accent-text);
   transition: width 0.25s linear;
 }
 
@@ -484,50 +929,90 @@ h2 {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 48px;
-  padding: 2px;
+  gap: 10px; /* artwork -> text */
+  height: 100%;
+  margin-right: 10px; /* text -> controls */
   text-align: left;
-  border-radius: 12px;
+  border-radius: 20px;
 }
 
-.mini-open:active {
-  background: var(--surface-2);
+/* Type.MiniPlayerTitle 15/20, Type.MiniPlayerArtist 11/13 */
+.mini-open .row-title {
+  font-size: 15px;
+  line-height: 20px;
 }
 
-/* Cupertino glass pill. No backdrop-filter of its own: .dock already blurs
-   everything behind it, so a nested one would cost a layer and show nothing. */
+.mini-open .row-sub {
+  font-size: 11px;
+  line-height: 13px;
+  letter-spacing: 0.06px;
+  color: color-mix(in srgb, var(--text) 70%, transparent);
+}
+
+/* Metrics.MiniPlayerControlSize = 36dp — but a 44px touch target is not
+   negotiable on iPhone, so the box is 44 and only the pressed disc is 36. */
 .mini-btn {
   flex: 0 0 auto;
-  width: 46px;
-  height: 46px;
+  position: relative;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
-  border-radius: 23px;
-  background: var(--glass);
-  border: 1px solid var(--border);
+  color: var(--text);
+  transition: transform var(--dur-fade) var(--ease-snappy);
+}
+
+.mini-btn::before {
+  content: '';
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  transition: background var(--dur-fade) ease-in-out;
 }
 
 .mini-btn:active {
-  background: var(--surface-2);
+  transform: scale(0.92);
+}
+
+.mini-btn:active::before {
+  background: color-mix(in srgb, var(--text) 10%, transparent);
+}
+
+.mini-btn svg {
+  position: relative;
 }
 
 /* ------------------------------------------------------- now playing --- */
 
+/* Convx's PlayerBackgroundStyle.BLUR: a heavily blurred copy of the artwork
+   filling the screen, with one flat black scrim (0.30) on top. Under that sits
+   --np-tint — the cover's own background colour run through
+   ArtworkColors.pageBackground() — which is what shows before the blurred copy
+   decodes, and permanently if it never loads. --np-ink is the contrast-picked
+   content colour (AppleTokens.onColor). src/ui/artworkTint.ts computes both;
+   a cross-origin cover that taints the canvas simply keeps the theme values. */
 .nowplaying {
+  --np-tint: var(--bg);
+  --np-ink: var(--text);
+  --np-ink-2: var(--muted);
+  /* ArtworkColors.CONTROL_FILL_ALPHA = 0.08 — translucent page controls. */
+  --np-fill: color-mix(in srgb, var(--np-ink) 8%, transparent);
+  --np-fill-2: color-mix(in srgb, var(--np-ink) 16%, transparent);
+
   position: fixed;
   inset: 0;
   z-index: 40;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  /* GLASS ADDITION: frosted sheet over the screen it covers, not an opaque slab */
-  background: color-mix(in srgb, var(--bg) 86%, transparent);
-  backdrop-filter: var(--blur);
-  -webkit-backdrop-filter: var(--blur);
-  padding-block: calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-bottom) + 22px);
-  padding-inline: max(env(safe-area-inset-left), 22px) max(env(safe-area-inset-right), 22px);
-  animation: sheet-up 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+  gap: 10px;
+  background: var(--np-tint);
+  color: var(--np-ink);
+  isolation: isolate;
+  padding-block: calc(env(safe-area-inset-top) + 8px) calc(env(safe-area-inset-bottom) + 18px);
+  padding-inline: max(env(safe-area-inset-left), var(--gutter-x)) max(env(safe-area-inset-right), var(--gutter-x));
+  animation: sheet-up var(--dur-smooth) var(--ease-smooth);
+  transition: background 0.5s ease-in-out, color 0.5s ease-in-out;
 }
 
 @keyframes sheet-up {
@@ -536,17 +1021,41 @@ h2 {
   }
 }
 
-/* RESPONSIVE ADDITION */
-/* Wide + tall only: a phone in landscape is wide but short, and must keep the
-   full-bleed sheet with its safe-area insets. The sheet still covers the
-   viewport (so it stays modal and nothing behind is clickable); ::before paints
-   the card. z-index:-1 puts it above the sheet's own background — now the
-   scrim — but below the content, so no wrapper element is needed. */
+/* the blurred cover, and the scrim that keeps text legible over it */
+.np-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.np-backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* scaled up because a blur of this radius would otherwise show the edges */
+  transform: scale(1.4);
+  filter: blur(52px) saturate(1.4);
+  opacity: 0.85;
+}
+
+.np-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #0000004d; /* Color.Black @ 0.30 */
+}
+
+/* RESPONSIVE: wide + tall only. A phone in landscape is wide but short, and
+   must keep the full-bleed sheet with its safe-area insets. The sheet still
+   covers the viewport (so it stays modal); ::before paints the card. */
 @media (min-width: 700px) and (min-height: 600px) {
   .nowplaying {
-    --np-x: max(16px, calc((100% - 420px) / 2));
+    --np-x: max(16px, calc((100% - 430px) / 2));
     --np-y: clamp(16px, 6vh, 56px);
-    padding: calc(var(--np-y) + 20px) calc(var(--np-x) + 24px);
+    padding: calc(var(--np-y) + 16px) calc(var(--np-x) + 22px);
     background: #00000073;
     animation-name: np-fade;
   }
@@ -556,26 +1065,42 @@ h2 {
     position: absolute;
     inset: var(--np-y) var(--np-x);
     z-index: -1;
-    /* opaque: the scrim behind it is already blurred, and a translucent card on
-       top of a 45% black scrim muddies the light palette */
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 22px;
-    box-shadow: 0 30px 90px #00000066;
+    background: var(--np-tint);
+    border-radius: 28px;
+    box-shadow: 0 30px 90px #00000080;
+  }
+
+  /* the blurred cover belongs to the card, not the scrim behind it */
+  .np-backdrop {
+    inset: var(--np-y) var(--np-x);
+    z-index: -1;
+    border-radius: 28px;
   }
 }
 
-/* RESPONSIVE ADDITION: a viewport-covering scrim sliding up looks wrong — fade instead */
+/* RESPONSIVE: a viewport-covering scrim sliding up looks wrong — fade instead */
 @keyframes np-fade {
   from {
     opacity: 0;
   }
 }
 
+/* Player_v2's grab handle: 54 x 5dp, r 2.5dp, adaptivePrimary @ 0.30. */
+.np-grab {
+  flex: 0 0 auto;
+  width: 54px;
+  height: 5px;
+  border-radius: 2.5px;
+  background: color-mix(in srgb, var(--np-ink) 30%, transparent);
+  margin: 8px auto;
+}
+
 .np-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
 
 .np-close {
@@ -584,63 +1109,241 @@ h2 {
   display: grid;
   place-items: center;
   border-radius: 22px;
-  background: var(--glass);
-  border: 1px solid var(--border);
+  color: var(--np-ink);
+  transition: background var(--dur-fade) ease-in-out;
+}
+
+.np-close:active {
+  background: var(--np-fill-2);
+}
+
+.np-eyebrow {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--np-ink-2);
+}
+
+/* a little character peeking from the header while a song plays — a square,
+   same scale as the close button and every other round icon badge in this
+   header, rather than a sliver shaped for one no-longer-used sprite sheet. */
+.np-cameo {
+  flex: 0 0 auto;
+  display: block;
+  width: 44px;
+  height: 44px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--np-fill);
+}
+
+.np-cameo-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* `contain`, not `cover`: the sprite-sheet cells are the one asset actually
+     cut to this box's 280:429.5 ratio. Every standalone image (square cat-ear
+     portraits, a landscape potato) is a completely different shape — `cover`
+     was cropping off ears, hands and most of the potato to force-fill the
+     box. `contain` shows the whole character, letterboxed into the tinted
+     fill behind it, which a transparent-background asset hides seamlessly. */
+  object-fit: contain;
+  background-repeat: no-repeat;
+  animation: mascot-in 0.4s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .np-cameo-frame {
+    animation: none;
+  }
 }
 
 .np-art {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  align-items: center;
   justify-content: center;
-  margin: 6px 0;
+  margin: 4px 0;
+  /* the square would otherwise overflow this box in both directions and cover
+     the header — which made the back button unclickable, not just hidden */
+  overflow: hidden;
 }
 
 .np-art .art {
-  max-width: min(100%, 68vh);
-  box-shadow: 0 24px 60px #0000005c;
+  /* an explicit height, not aspect-ratio, is what keeps this square: Artwork's
+     inline style sets width + aspect-ratio, and aspect-ratio only fills in a
+     missing dimension — once height is explicit here it wins instead, so the
+     box is bounded on both axes and can no longer grow over the header above
+     it (which is what made the back button unclickable, not just hidden) */
+  width: min(100%, 64vh);
+  height: min(100%, 64vh);
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: cover;
+  background: var(--np-fill);
+  /* Player_v2: artwork corner 12dp, thumbnail shadow elevation 8dp. */
+  border-radius: 12px;
+  box-shadow: 0 8px 24px #00000073, 0 2px 6px #0000003d;
 }
 
+/* title / artist on the left, the two round glass actions on the right */
 .np-meta {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.np-meta-text {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .np-meta h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: 0.35px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Cupertino scrubber: a thin capsule track with a small round knob. Styling the
+.np-meta p {
+  margin: 1px 0 0;
+  font-size: 17px;
+  line-height: 22px;
+  letter-spacing: -0.43px;
+  color: var(--np-ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.np-round {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: var(--np-fill-2);
+  color: var(--np-ink);
+  transition: background var(--dur-fade) ease-in-out, transform var(--dur-fade) var(--ease-snappy);
+}
+
+.np-round:active {
+  transform: scale(0.92);
+}
+
+/* Cupertino scrubber: a thin capsule track with no knob at rest. Styling the
    range costs the free `accent-color` fill, so the played part is a gradient on
    the input itself — which also keeps a sane bar in engines that ignore the
-   -webkit thumb pseudo-element. --p (0..1) comes from NowPlaying. */
+   -webkit thumb pseudo-element. --p (0..1) comes from NowPlaying.
+   PlayerSliderColors: the unplayed half is the SAME colour at alpha 0.3, never
+   a separate background-dependent grey. */
+.scrub {
+  flex: 0 0 auto;
+  margin-top: 4px;
+}
+
 .scrub input[type='range'] {
+  display: block;
   width: 100%;
-  height: 28px;
+  height: 48px; /* Slider requiredHeight — the touch target, not the track */
   appearance: none;
   -webkit-appearance: none;
-  accent-color: var(--accent);
-  background: linear-gradient(to right, var(--accent) calc(var(--p, 0) * 100%), var(--surface-2) 0) center / 100% 6px
-    no-repeat;
-  border-radius: 3px;
+  background: linear-gradient(
+      to right,
+      var(--np-ink) calc(var(--p, 0) * 100%),
+      color-mix(in srgb, var(--np-ink) 30%, transparent) 0
+    )
+    center / 100% 7px no-repeat;
+  border-radius: 4px;
 }
 
 /* same gradient again, but on the track, which can take the capsule radius */
 .scrub input[type='range']::-webkit-slider-runnable-track {
-  height: 6px;
-  border-radius: 3px;
-  background: linear-gradient(to right, var(--accent) calc(var(--p, 0) * 100%), var(--surface-2) 0);
+  height: 7px;
+  border-radius: 4px;
+  background: linear-gradient(
+    to right,
+    var(--np-ink) calc(var(--p, 0) * 100%),
+    color-mix(in srgb, var(--np-ink) 30%, transparent) 0
+  );
 }
 
+/* No knob at rest, as in the reference — but a keyboard user needs to see
+   what they are moving, so focus brings one back. */
 .scrub input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
-  margin-top: -4px; /* centres the 14px knob on the 6px track */
-  width: 14px;
-  height: 14px;
+  margin-top: -4px;
+  width: 13px;
+  height: 13px;
   border-radius: 7px;
-  background: var(--text);
-  box-shadow: 0 1px 4px #00000047;
+  background: var(--np-ink);
+  opacity: 0;
+  transition: opacity var(--dur-fade) ease-in-out;
+}
+
+.scrub input[type='range']:focus-visible::-webkit-slider-thumb,
+.scrub input[type='range']:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+/* Gecko paints its own track over the input background, so the same two-tier
+   bar has to be restated with the -moz- pseudo-elements. WebKit (every iPhone)
+   uses the rules above. */
+.scrub input[type='range']::-moz-range-track,
+.np-volume input[type='range']::-moz-range-track {
+  height: 7px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--np-ink) 30%, transparent);
+}
+
+.np-volume input[type='range']::-moz-range-track {
+  height: 10px;
+  border-radius: 5px;
+}
+
+.scrub input[type='range']::-moz-range-progress,
+.np-volume input[type='range']::-moz-range-progress {
+  height: 7px;
+  border-radius: 4px;
+  background: var(--np-ink);
+}
+
+.np-volume input[type='range']::-moz-range-progress {
+  height: 10px;
+  border-radius: 5px;
+}
+
+/* No knob at rest, as in the reference — focus brings it back for keyboards. */
+.scrub input[type='range']::-moz-range-thumb,
+.np-volume input[type='range']::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--np-ink);
+  opacity: 0;
+  transition: opacity var(--dur-fade) ease-in-out;
+}
+
+.scrub input[type='range']:focus-visible::-moz-range-thumb,
+.scrub input[type='range']:active::-moz-range-thumb,
+.np-volume input[type='range']:focus-visible::-moz-range-thumb,
+.np-volume input[type='range']:active::-moz-range-thumb {
+  opacity: 1;
 }
 
 .scrub input[type='range']:disabled {
@@ -649,46 +1352,410 @@ h2 {
 
 .scrub-times {
   display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: -4px;
-}
-
-.np-controls {
-  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--np-ink-2);
   margin-top: 2px;
 }
 
+/* the centred quality/format pill between the two timestamps */
+.scrub-badge {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--np-fill-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07px;
+  color: var(--np-ink);
+  text-transform: none;
+}
+
+/* Flat glyph transport — no filled accent circle. The play glyph is simply
+   bigger than the skips, exactly as in the reference player. */
+.np-controls {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  width: 100%;
+  max-width: 302px; /* v2 transport row max width */
+  margin: 30px auto 0; /* timeline -> transport = 30dp */
+}
+
+/* prev/next 61dp, play/pause 72dp, every glyph 44dp. The pressed disc is
+   adaptivePrimary @ 0.16. */
 .np-controls button {
-  min-width: 48px;
-  min-height: 48px;
+  flex: 1 1 0;
+  height: 61px;
   display: grid;
   place-items: center;
-  border-radius: 24px;
+  border-radius: 31px;
+  color: var(--np-ink);
+  transition: background var(--dur-fade) ease-in-out, transform var(--dur-fade) var(--ease-snappy);
+}
+
+.np-controls button:active {
+  background: color-mix(in srgb, var(--np-ink) 16%, transparent);
+  transform: scale(0.92);
 }
 
 .np-play {
-  width: 68px;
-  height: 68px;
-  background: var(--accent);
-  color: var(--on-accent);
-  border-radius: 34px;
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 40%, transparent);
+  flex: 0 0 auto;
+  width: 72px;
+  height: 72px;
+  border-radius: 36px;
 }
 
+.np-volume {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 341px; /* v2 volume row max width */
+  margin: 23px auto 0; /* transport -> volume = 23dp */
+  color: var(--np-ink-2);
+}
+
+.np-volume input[type='range'] {
+  flex: 1 1 auto;
+  height: 44px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: linear-gradient(
+      to right,
+      var(--np-ink) calc(var(--v, 1) * 100%),
+      color-mix(in srgb, var(--np-ink) 30%, transparent) 0
+    )
+    center / 100% 10px no-repeat;
+  border-radius: 5px;
+}
+
+.np-volume input[type='range']::-webkit-slider-runnable-track {
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(
+    to right,
+    var(--np-ink) calc(var(--v, 1) * 100%),
+    color-mix(in srgb, var(--np-ink) 30%, transparent) 0
+  );
+}
+
+.np-volume input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  margin-top: -4px;
+  width: 13px;
+  height: 13px;
+  border-radius: 7px;
+  background: var(--np-ink);
+  opacity: 0;
+  transition: opacity var(--dur-fade) ease-in-out;
+}
+
+.np-volume input[type='range']:focus-visible::-webkit-slider-thumb,
+.np-volume input[type='range']:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+/* The player's bottom action row — three evenly spread glyph toggles. */
+.np-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+  padding-inline: 10px;
+}
+
+/* v2 bottom action row: 40dp buttons with 28dp glyphs — padded to a 44px
+   touch target, which iPhone requires and Compose does not. */
 .np-toggle {
+  position: relative;
+  width: 56px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-ctl);
+  color: var(--np-ink-2);
+  transition: color var(--dur-fade) ease-in-out, background var(--dur-fade) ease-in-out;
+}
+
+.np-toggle:active {
+  background: var(--np-fill);
+}
+
+/* An active toggle reads as a selected Cupertino control: full-strength ink
+   plus the dot Apple Music puts under an engaged transport option. */
+.np-toggle.on {
+  color: var(--np-ink);
+  background: var(--np-fill-2);
+}
+
+.np-toggle.on::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* ------------------------------------------------------------ lyrics --- */
+
+/* takes the artwork's place, so Now Playing never needs to scroll as a whole */
+.lyrics {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  margin: 4px 0;
+  padding: 8px 2px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.lyrics::-webkit-scrollbar {
+  display: none;
+}
+
+.lyric {
+  display: block;
+  width: 100%;
+  padding: 8px 4px;
+  text-align: left;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 700;
+  letter-spacing: 0.35px;
+  color: var(--np-ink);
+  opacity: 0.4;
+  transition: opacity var(--dur-smooth) var(--ease-smooth), transform var(--dur-smooth) var(--ease-smooth);
+  transform-origin: left center;
+}
+
+.lyric.on {
+  opacity: 1;
+  transform: scale(1.02);
+}
+
+.lyric:disabled {
+  opacity: 0.6;
+}
+
+.lyrics-note {
+  margin: 10px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--np-ink-2, var(--muted));
+}
+
+/* ---------------------------------------------------------- download --- */
+
+.row-action.error {
+  color: var(--danger);
+}
+
+.dl-ring {
+  /* the unfilled ring alone reads as "nothing is happening" */
+  color: var(--accent-text);
+}
+
+/* ------------------------------------------------------------- sheet --- */
+
+/* above .nowplaying (40), so the menu works from the player too */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: #00000066;
+  animation: sheet-fade 0.15s ease-out;
+}
+
+/* a sheet holding a text input centers instead of docking to the bottom —
+   docked, the on-screen keyboard covers it entirely */
+.sheet-backdrop:has(.sheet-form) {
+  align-items: center;
+}
+
+.sheet {
+  width: min(100%, 460px);
+  margin: 10px;
+  margin-bottom: calc(env(safe-area-inset-bottom) + 10px);
+  padding: 6px;
+  border-radius: var(--r-card-lg);
+  background: var(--glass-strong);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  box-shadow: 0 18px 50px #00000059, inset 0 1px 0 var(--glass-hi);
+  color: var(--text);
+  animation: sheet-rise var(--dur-smooth) var(--ease-smooth);
+}
+
+.sheet:focus {
+  outline: none;
+}
+
+/* centered, so no bottom safe-area reserve is needed */
+.sheet:has(.sheet-form) {
+  margin-bottom: 10px;
+}
+
+.sheet-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--text-gap);
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sheet-title {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 700;
+  letter-spacing: -0.23px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-sub,
+.sheet-note {
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: -0.08px;
   color: var(--muted);
 }
 
-/* the active toggle reads as a selected Cupertino control, not just a tinted icon */
-.np-toggle.on {
-  color: var(--accent);
-  background: var(--glass);
-  border: 1px solid var(--border);
+/* the playlist picker's own header, nested one level under the main options
+   sheet — a back chevron so landing here by mistake (or changing your mind
+   after checking a playlist) doesn't mean closing the whole sheet and
+   reopening it. */
+.sheet-nav {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.sheet-back {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  color: var(--text);
+  transition: background var(--dur-fade) ease-in-out;
+}
+
+.sheet-back:active {
+  background: var(--fill-3);
+}
+
+.sheet-title-group {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--text-gap);
+  min-width: 0;
+}
+
+/* "New playlist" creates something; every row below it just toggles
+   membership in something that already exists — different enough actions
+   that looking identical was the actual bug, not a style preference. */
+.sheet-item-accent {
+  color: var(--accent-text);
+}
+
+.sheet-divider {
+  border-top: 1px solid var(--border);
+  margin: 4px 10px;
+}
+
+.sheet-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 14px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 17px;
+  letter-spacing: -0.43px;
+  font-weight: 500;
+  transition: background var(--dur-fade) ease-in-out;
+}
+
+.sheet-item:active {
+  background: var(--fill-3);
+}
+
+.sheet-item.danger {
+  color: var(--danger);
+}
+
+.sheet-item-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sheet-note {
+  font-weight: 400;
+}
+
+.sheet-cancel {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+  font-size: 17px;
+  letter-spacing: -0.43px;
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+/* "Name this playlist" as an in-sheet form, not a native window.prompt(). */
+.sheet-form {
+  padding: 4px 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sheet-submit:disabled {
+  color: var(--faint);
+  pointer-events: none;
+}
+
+@keyframes sheet-rise {
+  from {
+    transform: translateY(14px);
+  }
+}
+
+@keyframes sheet-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* a phone that asks for less motion gets none of the above */
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheet-backdrop {
+    animation: none;
+  }
 }
 
 /* --------------------------------------------------------------- log --- */
@@ -699,7 +1766,7 @@ h2 {
   padding: 10px 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   font-size: 12px;
   line-height: 1.7;
   max-height: 320px;
@@ -716,12 +1783,16 @@ h2 {
 
 .banner {
   margin: 0 0 14px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  padding: 13px 15px;
+  border-radius: var(--r-card);
+  background: var(--glass);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 0 var(--glass-hi);
   font-size: 13px;
-  line-height: 1.45;
+  line-height: 18px;
+  letter-spacing: -0.08px;
   color: var(--muted);
 }
 
@@ -735,8 +1806,8 @@ h2 {
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: calc(env(safe-area-inset-bottom) + 118px);
-  /* RESPONSIVE ADDITION: auto margins centre it once the cap bites */
+  bottom: calc(var(--dock-h) + 14px);
+  /* RESPONSIVE: auto margins centre it once the cap bites */
   max-width: 420px;
   margin-inline: auto;
   z-index: 50;
@@ -752,12 +1823,15 @@ h2 {
   align-items: center;
   gap: 12px;
   padding: 12px 14px;
-  border-radius: 12px;
-  background: #222228;
-  color: #fff;
+  border-radius: var(--r-card);
+  background: var(--glass-strong);
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border: 1px solid var(--border);
+  color: var(--text);
   font-size: 14px;
-  box-shadow: 0 8px 24px #00000059;
-  animation: rise 0.18s ease-out;
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  animation: rise 0.18s var(--ease-smooth);
 }
 
 .toast span {
@@ -767,7 +1841,7 @@ h2 {
 .toast button {
   min-height: 32px;
   padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: var(--r-ctl);
   background: var(--accent);
   color: var(--on-accent);
   font-size: 13px;
@@ -783,36 +1857,171 @@ h2 {
 
 /* ---------------------------------------------------------- skeleton --- */
 
+/* Ambient Chromatics: a slow brand-tinted gradient drifting across every
+   loading surface, instead of a flat grey block — the "soft-focus lens, not
+   neon" treatment 2026's loading-UI trend pieces converge on. One keyframe,
+   reused at two speeds: fast-ish for thin text bars, slow for big artwork. */
 .skeleton {
-  background: var(--skeleton);
-  border-radius: 8px;
-  animation: pulse 1.4s ease-in-out infinite;
+  background: linear-gradient(
+    100deg,
+    var(--skeleton) 15%,
+    color-mix(in srgb, var(--accent) 18%, var(--skeleton)) 45%,
+    var(--skeleton) 75%
+  );
+  background-size: 260% 100%;
+  border-radius: var(--r-art);
+  animation: skel-glow 2.6s ease-in-out infinite;
 }
 
-@keyframes pulse {
-  50% {
-    opacity: 0.45;
+/* matches h2: same height and the same rhythm, so the real titles land
+   exactly where the placeholders were */
+.skeleton-title {
+  height: 22px;
+  margin: var(--section-gap) 0 10px;
+  border-radius: 6px;
+}
+
+.skeleton-line {
+  height: 11px;
+  border-radius: 5px;
+}
+
+@keyframes skel-glow {
+  0%,
+  100% {
+    background-position: 0% 50%;
   }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* The loading state is the brand mark: every placeholder artwork holds the
+   logo fading in and out over the same drifting gradient, instead of an empty
+   grey block. One image, already precached and already decoded by the time
+   the second placeholder paints. */
+.skel-art {
+  position: relative;
+  flex: 0 0 auto;
+  background: linear-gradient(
+    135deg,
+    var(--skeleton) 0%,
+    color-mix(in srgb, var(--accent) 16%, var(--skeleton)) 32%,
+    var(--skeleton) 58%,
+    color-mix(in srgb, var(--accent) 12%, var(--skeleton)) 82%,
+    var(--skeleton) 100%
+  );
+  background-size: 240% 240%;
+  border-radius: var(--r-art);
+  overflow: hidden;
+  animation: skel-glow 5.5s ease-in-out infinite;
+}
+
+.skel-art::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  /* capped, so the mark stays a quiet signature on a 242px hero card and
+     still reads at 48px in a list row */
+  background: url('/icons/logo-128.png') center / min(42%, 52px) no-repeat;
+  animation: logo-fade 2.8s var(--ease-smooth) infinite;
+}
+
+/* the placeholder hero card's caption strip, which has no artwork to mirror */
+.hero-cap.skel-cap {
+  background: var(--skeleton);
+}
+
+/* fade in, hold, fade out — the logo is the loading indicator, not a watermark
+   on one. A faint scale breath keeps it from reading as a static sticker. */
+@keyframes logo-fade {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  45%,
+  65% {
+    opacity: 0.92;
+    transform: scale(1);
+  }
+}
+
+/* a pulsing page is the opposite of what reduced motion asks for */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+
+  .skel-art {
+    animation: none;
+  }
+
+  .skel-art::before {
+    animation: none;
+    opacity: 0.32;
+    transform: none;
+  }
+}
+
+/* announced to screen readers, invisible to everyone else */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------- focus --- */
+
+/* Keyboard users get a ring everywhere; pointer users never see it. */
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.nowplaying :focus-visible {
+  outline-color: var(--np-ink);
 }
 
 /* ------------------------------------------------------------- hover --- */
 
-/* RESPONSIVE ADDITION */
 /* Mouse/trackpad only — on touch :hover sticks after a tap. The existing
    :active rules stay as the touch feedback. */
 @media (hover: hover) {
   .row-main:not(:disabled):hover,
-  .tile:hover,
   .mini-open:hover,
   .mini-btn:hover,
-  .np-controls button:not(.np-play):hover,
-  .np-close:hover {
-    background: var(--surface-2);
+  .row-action:hover,
+  .sheet-item:hover {
+    background: var(--fill-3);
   }
 
-  .tabbar button:hover,
-  .chip:hover {
-    opacity: 0.75;
+  .np-controls button:hover,
+  .np-close:hover,
+  .np-round:hover,
+  .np-toggle:hover {
+    background: var(--np-fill-2);
+  }
+
+  .tile:hover .art {
+    transform: scale(1.03);
+  }
+
+  .hero-card:hover {
+    transform: translateY(-2px);
+  }
+
+  .tabbar button:not([aria-current='page']):hover {
+    background: var(--fill-3);
+  }
+
+  .chip:not([aria-pressed='true']):not([aria-checked='true']):hover {
+    background: var(--fill-2);
   }
 }
 

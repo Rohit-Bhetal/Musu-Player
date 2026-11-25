@@ -81,11 +81,11 @@ Previously served by `extractor/`, a yt-dlp container you had to deploy and
 keep fighting YouTube's bot-check from (SABR, PO tokens, IP reputation — see
 git history on this file and on `extractor/` for that whole fight). Replaced
 on 2026-11-25 by resolving through public Piped instances (docs.piped.video)
-instead, combined with a cache: a track is only ever resolved once, ever —
-the first request streams it to the phone *and* into R2 (`AUDIO_CACHE`
-binding) in the background, so every later play by anyone is a plain file
-read, no extraction and no bot-check involved at all. `extractor/` is kept
-in the repo as a reference/self-host fallback but is not deployed anywhere.
+instead — no box to run, no bot-check to fight. No server-side cache: for
+personal use, a track you care about replaying is what the app's own offline
+download feature is for, so the only reliability lever here is retrying
+across instances rather than storing results. `extractor/` is kept in the
+repo as a reference/self-host fallback but is not deployed anywhere.
 
 Measured on 2026-11-22, end to end against the (now retired) live extractor —
 the facts below about IP-pinning and throttling still hold regardless of
@@ -114,11 +114,13 @@ reports its own edge in `wrangler pages dev`, which answered `HK` here.
 `src/ui/home.ts` turns the code into a row title with `Intl.DisplayNames`.
 
 **Audio**: `getStreamUrl('youtube:<id>')` returns `/api/youtube/audio?v=<id>`,
-nothing else. That route checks `AUDIO_CACHE` (R2) first; on a miss it rotates
-through public Piped instances (the published list rots constantly — see
-TeamPiped/Piped#3760 — so it's fetched live and edge-cached for 10 minutes,
-with a couple of confirmed-working instances as a last-resort fallback) until
-one resolves the track, then streams it to the phone and into R2.
+nothing else. That route rotates through public Piped instances (the
+published list rots constantly — see TeamPiped/Piped#3760 — so it's fetched
+live and edge-cached for 10 minutes, with a couple of confirmed-working
+instances as a last-resort fallback, up to `MAX_ATTEMPTS` instances tried
+before giving up) until one resolves the track, then streams that straight
+through — `Range` included, so seeking stays a cheap partial fetch rather
+than pulling the whole file.
 
 Three measured facts forced that shape:
 
@@ -162,15 +164,15 @@ the browser receives.
 
 **shortcut:** depends on public Piped instances staying up — their uptime is
 inherently volatile (hobbyist-run, no SLA), which is exactly what the live
-instance list + fallback hosts + R2 cache are there to absorb. If playback
-starts failing across the board, check whether the whole candidate list has
-gone dark before suspecting anything in this repo.
+instance list, the hardcoded fallback hosts, and trying up to `MAX_ATTEMPTS`
+of them are there to absorb. If playback starts failing across the board,
+check whether the whole candidate list has gone dark before suspecting
+anything in this repo. No server-side cache means a flaky instance costs a
+failed/retried request rather than corrupting anything stored — upgrade to a
+shared cache (R2 or similar) if this ever needs to serve more than one person.
 
-**Running it.** Nothing to run — `AUDIO_CACHE` is an R2 bucket binding
-(`wrangler.toml`; `wrangler pages dev` simulates it locally with no real
-bucket needed). For production: `wrangler r2 bucket create musu-audio-cache`,
-then bind it to the Pages project under Settings > Functions > R2 bindings.
-No token, no box, no IP to worry about getting blocked.
+**Running it.** Nothing to run, nothing to deploy. No token, no box, no IP to
+worry about getting blocked.
 
 **What this is.** Downloading YouTube content is against YouTube's Terms of
 Service, and whether a given track is yours to keep offline is a copyright
@@ -202,17 +204,15 @@ open exactly, which for `dev:pages` is `http://localhost:8788`.
 
 This was the open question, and `functions/api/youtube/audio.ts` is the
 answer: a **CORS reflector on your own origin** backed by public Piped
-instances and an R2 cache, because a reflector alone has nothing left to
-reflect. It carries YouTube-ToS risk on a public URL — an explicit choice,
-not a free lunch.
+instances, because a reflector alone has nothing left to reflect. It carries
+YouTube-ToS risk on a public URL — an explicit choice, not a free lunch.
 
 ## Fallback order
 
 1. Your own backend, if there is one — takes priority over everything.
 2. Audius and YouTube together, interleaved in one list. YouTube rows always
    appear; whether they play depends on some Piped instance resolving the
-   track (cached after the first successful play, so this only matters for
-   never-before-played tracks).
+   track on that request.
 3. Whatever is already downloaded — offline, that is the whole library.
 4. `mockSource` — always available, no network at all.
 

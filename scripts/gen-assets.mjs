@@ -385,10 +385,12 @@ const logo = decodePng(readFileSync(LOGO))
 // chrome that isn't pure white. A favicon has no canvas to be square *on*.
 writeFileSync(join(ICONS, 'icon-192.png'), logoIcon(logo, 192, 0.94, true))
 writeFileSync(join(ICONS, 'icon-512.png'), logoIcon(logo, 512, 0.94, true))
-// Maskable and apple-touch-icon must stay full-bleed squares: the OS applies
-// its own shape mask to them and relies on the square filling the canvas.
+// Maskable must stay a full-bleed square: the OS applies its own shape mask
+// to it and relies on the square filling the canvas.
 writeFileSync(join(ICONS, 'maskable-512.png'), logoIcon(logo, 512, 0.62))
-writeFileSync(join(ICONS, 'apple-touch-icon.png'), logoIcon(logo, 192, 0.94))
+// apple-touch-icon.png is NOT generated here — it's a hand-saved override
+// (see .gitignore's exception for it) kept out of gen-assets so it survives
+// every rebuild untouched.
 // The in-app brand mark: transparent, so it sits on either theme. Drawn no
 // larger than 44 CSS px, so 128 covers a 3x screen.
 writeFileSync(join(ICONS, 'logo-128.png'), logoIcon(logo, 128, 1, true))

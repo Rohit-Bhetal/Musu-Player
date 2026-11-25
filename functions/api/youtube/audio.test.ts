@@ -13,12 +13,12 @@ const urlOf = (input: RequestInfo | URL): string =>
 
 // Routes a fetch call by substring match against the request URL — lets each
 // test describe only the hosts it cares about without assuming call order.
-function fetchRouter(routes: Record<string, () => Response | Promise<Response>>) {
-  return vi.fn(async (input: RequestInfo | URL) => {
+function fetchRouter(routes: Record<string, (init?: RequestInit) => Response | Promise<Response>>) {
+  return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = urlOf(input)
     const route = Object.entries(routes).find(([pattern]) => url.includes(pattern))
     if (!route) throw new Error(`unmocked fetch: ${url}`)
-    return route[1]()
+    return route[1](init)
   })
 }
 
@@ -38,49 +38,27 @@ describe('the audio route', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('serves a cache hit straight from AUDIO_CACHE without resolving anything', async () => {
-    const fetchSpy = vi.fn()
-    vi.stubGlobal('fetch', fetchSpy)
-    const get = vi.fn(async () => ({
-      size: 5,
-      httpMetadata: { contentType: 'audio/mp4' },
-      body: new Response('bytes').body!,
-    }))
-
-    const response = await onRequestGet({
-      request: audioRequest('?v=abcdefghijk', { Range: 'bytes=0-4' }),
-      env: { ...env, AUDIO_CACHE: { get, put: vi.fn() } },
-    })
-
-    expect(get).toHaveBeenCalledWith('abcdefghijk', { range: { offset: 0, length: 5 } })
-    expect(fetchSpy).not.toHaveBeenCalled()
-    expect(response.status).toBe(206)
-    expect(response.headers.get('Content-Range')).toBe('bytes 0-4/5')
-    expect(response.headers.get('Content-Type')).toBe('audio/mp4')
-  })
-
-  it('on a cold cache, resolves via Piped, ignores any Range upstream, and populates AUDIO_CACHE in the background', async () => {
+  it('resolves via Piped and forwards Range straight through to the media fetch', async () => {
     vi.stubGlobal(
       'fetch',
       fetchRouter({
         'piped-instances.kavin.rocks': async () => Response.json([{ api_url: 'https://inst.example' }]),
         'inst.example/streams/abcdefghijk': streamsOk({ videoStreams: [{ url: 'https://media.example/v.mp4', format: 'MPEG_4' }] }),
-        'media.example/v.mp4': async () => new Response('bytes', { status: 200, headers: { 'Content-Type': 'video/mp4' } }),
+        'media.example/v.mp4': async (init) => {
+          expect(new Headers(init?.headers).get('Range')).toBe('bytes=0-4')
+          return new Response('bytes', {
+            status: 206,
+            headers: { 'Content-Type': 'video/mp4', 'Content-Range': 'bytes 0-4/5' },
+          })
+        },
       }),
     )
-    const put = vi.fn(async () => undefined)
-    const waitUntil = vi.fn()
 
-    const response = await onRequestGet({
-      request: audioRequest('?v=abcdefghijk', { Range: 'bytes=0-4' }),
-      env: { ...env, AUDIO_CACHE: { get: vi.fn(async () => null), put } },
-      waitUntil,
-    })
+    const response = await onRequestGet({ request: audioRequest('?v=abcdefghijk', { Range: 'bytes=0-4' }), env })
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(206)
+    expect(response.headers.get('Content-Range')).toBe('bytes 0-4/5')
     expect(await response.text()).toBe('bytes')
-    expect(put).toHaveBeenCalledWith('abcdefghijk', expect.anything(), { httpMetadata: { contentType: 'video/mp4' } })
-    expect(waitUntil).toHaveBeenCalledWith(expect.any(Promise))
   })
 
   it('prefers an audio-only stream over a muxed video one when both are offered', async () => {
@@ -117,6 +95,26 @@ describe('the audio route', () => {
 
     expect(response.status).toBe(200)
     expect(await response.text()).toBe('bytes')
+  })
+
+  it('only tries up to MAX_ATTEMPTS instances before giving up', async () => {
+    const attempted = new Set<string>()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = urlOf(input)
+        if (url.includes('piped-instances.kavin.rocks')) {
+          return Response.json(Array.from({ length: 20 }, (_, i) => ({ api_url: `https://inst${i}.example` })))
+        }
+        attempted.add(new URL(url).host)
+        return new Response('nope', { status: 502 })
+      }),
+    )
+
+    const response = await onRequestGet({ request: audioRequest(), env })
+
+    expect(response.status).toBe(502)
+    expect(attempted.size).toBeLessThanOrEqual(8)
   })
 
   it('falls back to the hardcoded instance list when the live list cannot be fetched at all', async () => {

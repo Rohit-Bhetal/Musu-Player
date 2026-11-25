@@ -5,9 +5,6 @@ export interface BaseEnv {
 export interface PagesContext<Env extends BaseEnv = BaseEnv> {
   request: Request
   env: Env
-  // Always present at runtime (part of Cloudflare's EventContext); optional
-  // here only so tests can construct a context without it.
-  waitUntil?(promise: Promise<unknown>): void
 }
 
 // APP_ORIGIN can be a comma-separated list — dev often means more than one

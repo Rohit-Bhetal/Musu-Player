@@ -5,3 +5,12 @@
 name = "musu-player"
 pages_build_output_dir = "dist"
 compatibility_date = "2026-11-23"
+
+# Caches each YouTube track's audio after its first play, so later plays by
+# anyone are a plain file read instead of a fresh yt-dlp/YouTube round trip.
+# `wrangler pages dev` simulates this locally with no real bucket needed; for
+# production, create the bucket (`wrangler r2 bucket create musu-audio-cache`)
+# and bind it to the Pages project under Settings > Functions > R2 bindings.
+[[r2_buckets]]
+binding = "AUDIO_CACHE"
+bucket_name = "musu-audio-cache"

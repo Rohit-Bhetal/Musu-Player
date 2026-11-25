@@ -75,9 +75,21 @@ set `LYRICA_URL` to that address, and `.dev.vars.example` has the local entry.
 is not: one probe returned `302` then `401`, another returned a `302` carrying
 **no** ACAO header at all. Fine for metadata, unusable as a download source.
 
-### YouTube — works, with a box you run
+### YouTube — works, no box to run
 
-Measured on 2026-11-22, end to end against a live extractor.
+Previously served by `extractor/`, a yt-dlp container you had to deploy and
+keep fighting YouTube's bot-check from (SABR, PO tokens, IP reputation — see
+git history on this file and on `extractor/` for that whole fight). Replaced
+on 2026-11-25 by resolving through public Piped instances (docs.piped.video)
+instead, combined with a cache: a track is only ever resolved once, ever —
+the first request streams it to the phone *and* into R2 (`AUDIO_CACHE`
+binding) in the background, so every later play by anyone is a plain file
+read, no extraction and no bot-check involved at all. `extractor/` is kept
+in the repo as a reference/self-host fallback but is not deployed anywhere.
+
+Measured on 2026-11-22, end to end against the (now retired) live extractor —
+the facts below about IP-pinning and throttling still hold regardless of
+whose infrastructure resolves the bytes first.
 
 **Titles**: `functions/api/youtube/search.ts` calls Data API v3 `search.list`.
 Needs `YOUTUBE_API_KEY` as a **server-side secret** — never a `VITE_` variable.
@@ -102,8 +114,11 @@ reports its own edge in `wrangler pages dev`, which answered `HK` here.
 `src/ui/home.ts` turns the code into a row title with `Intl.DisplayNames`.
 
 **Audio**: `getStreamUrl('youtube:<id>')` returns `/api/youtube/audio?v=<id>`,
-nothing else. That route proxies to `extractor/`, a container you deploy, which
-resolves with yt-dlp and streams the bytes back.
+nothing else. That route checks `AUDIO_CACHE` (R2) first; on a miss it rotates
+through public Piped instances (the published list rots constantly — see
+TeamPiped/Piped#3760 — so it's fetched live and edge-cached for 10 minutes,
+with a couple of confirmed-working instances as a last-resort fallback) until
+one resolves the track, then streams it to the phone and into R2.
 
 Three measured facts forced that shape:
 
@@ -145,33 +160,17 @@ itag 140, AAC ~130 kbps, the one format iOS Safari decodes. An unknown origin
 gets `403`, a bad id `400`, and the extractor's token never appears in anything
 the browser receives.
 
-Run `python extractor/test_server.py` for the byte-maths self-check (no network,
-no yt-dlp needed).
+**shortcut:** depends on public Piped instances staying up — their uptime is
+inherently volatile (hobbyist-run, no SLA), which is exactly what the live
+instance list + fallback hosts + R2 cache are there to absorb. If playback
+starts failing across the board, check whether the whole candidate list has
+gone dark before suspecting anything in this repo.
 
-**shortcut:** this depends entirely on yt-dlp keeping up with YouTube, which is
-a moving target. When a track stops playing, rebuild the extractor image to pull
-a newer yt-dlp before suspecting anything in this repo. The image deliberately
-does not pin a version.
-
-**Running it.** The box needs an IP YouTube does not block — a cheap VPS, Fly.io,
-Railway, or your own machine behind a Cloudflare Tunnel. Residential IPs work
-best; some datacentre ranges are gated harder.
-
-> Docker Desktop on WSL2 is a bad place to judge speed: a raw 1 MiB fetch *inside*
-> the container took 6.7 s there against 0.13 s on the host, with none of this
-> code involved. That is the WSL2 NAT, not the extractor. On a Linux host,
-> container networking is near-native.
-
-```bash
-docker build -t spothub-extractor ./extractor
-docker run -d -p 8099:8080 -e EXTRACTOR_TOKEN=$(openssl rand -hex 32) spothub-extractor
-```
-
-Then set `EXTRACTOR_URL` and the same `EXTRACTOR_TOKEN` in the Pages project (and
-in `.dev.vars` locally). The token is the only thing stopping a stranger who
-finds the host from using it as a free downloader, so make it long and keep the
-box off a guessable hostname. The browser never sees either value: it only ever
-talks to `/api/youtube/audio` on your own origin.
+**Running it.** Nothing to run — `AUDIO_CACHE` is an R2 bucket binding
+(`wrangler.toml`; `wrangler pages dev` simulates it locally with no real
+bucket needed). For production: `wrangler r2 bucket create musu-audio-cache`,
+then bind it to the Pages project under Settings > Functions > R2 bindings.
+No token, no box, no IP to worry about getting blocked.
 
 **What this is.** Downloading YouTube content is against YouTube's Terms of
 Service, and whether a given track is yours to keep offline is a copyright
@@ -194,24 +193,26 @@ open exactly, which for `dev:pages` is `http://localhost:8788`.
 | yt-dlp, Spotui `innertube` | native/server-side extractors. Cannot run in a browser. |
 | Spotube | Kotlin Multiplatform app (`composeApp`/`iosApp`), no network service to call. Its resolvers are **JavaScript** plugins in a Zipline sandbox — readable as reference, but a sandbox is not subject to CORS and a browser is, so the logic does not transfer. |
 | Cobalt | public API retired Nov 2024, self-host only. |
-| Invidious / Piped | googlevideo sends no CORS headers; playback rides a third party's proxy. Instance count degrading. Replaced by our own YouTube route above — the code stays in `apiSource.ts` but `search()` never emits a `piped:` id. |
+| Invidious | same idea as Piped but instances were all down or serving HTML error pages when checked; not revisited since Piped started working. |
 | go-music-api | self-host only, wants real streaming-account cookies. |
 | Jamendo, Deezer | no CORS. |
 | Free Music Archive | API shut down. |
 
 ## If mainstream catalog is required
 
-This was the open question, and `extractor/` plus `functions/api/youtube/audio.ts`
-are the answer: a **CORS reflector on your own origin**, with a real extractor
-behind it, because a reflector alone has nothing left to reflect. Self-hosted,
-and it carries YouTube-ToS risk on a public URL — an explicit choice, not a free
-lunch.
+This was the open question, and `functions/api/youtube/audio.ts` is the
+answer: a **CORS reflector on your own origin** backed by public Piped
+instances and an R2 cache, because a reflector alone has nothing left to
+reflect. It carries YouTube-ToS risk on a public URL — an explicit choice,
+not a free lunch.
 
 ## Fallback order
 
 1. Your own backend, if there is one — takes priority over everything.
-2. Audius and YouTube together, interleaved in one list. YouTube rows need the
-   extractor box to be up; without it they appear but will not play.
+2. Audius and YouTube together, interleaved in one list. YouTube rows always
+   appear; whether they play depends on some Piped instance resolving the
+   track (cached after the first successful play, so this only matters for
+   never-before-played tracks).
 3. Whatever is already downloaded — offline, that is the whole library.
 4. `mockSource` — always available, no network at all.
 

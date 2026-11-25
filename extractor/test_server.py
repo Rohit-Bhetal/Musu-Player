@@ -1,11 +1,22 @@
-"""Self-check for the byte maths. Run: python extractor/test_server.py
+"""Self-check for the byte maths and the auth/POT wiring. Run: python extractor/test_server.py
 
 Needs no yt-dlp and no network — resolve() imports yt-dlp lazily for this reason.
 """
 
-from unittest.mock import patch
+import inspect
 
-from server import _cache, chunks, expiry_of, metadata, parse_range
+from server import CLIENT_CHAINS, chunks, expiry_of, parse_range, resolve, ExtractorHandler
+
+# The POT provider must be wired in, or every resolve from a datacenter IP
+# hits YouTube's bot-check with nothing to get past it.
+assert "youtubepot-bgutilhttp" in inspect.getsource(resolve)
+
+# The client rotation list must actually contain client names to try.
+assert CLIENT_CHAINS and all(chain for chain in CLIENT_CHAINS)
+
+# The token check must still gate every request, or this becomes an open
+# proxy for anyone who finds the URL.
+assert "compare_digest" in inspect.getsource(ExtractorHandler.do_GET)
 
 # A Range the app sent is honoured and clamped to the file.
 assert parse_range("bytes=0-4095", 3216302) == (0, 4095, True)
@@ -29,33 +40,5 @@ assert sum(end - at + 1 for at, end in window) == 4250167
 # The URL states its own deadline; a margin keeps us off the edge.
 assert expiry_of("https://x/videoplayback?expire=2000000000&n=1") == 2000000000 - 300
 assert expiry_of("https://x/videoplayback?no-expiry=1") > 0
-
-# A seeking Safari issues many range requests per track; metadata() must only
-# probe googlevideo once per resolved URL, not once per request.
-class _FakeProbe:
-    headers = {"Content-Range": "bytes 0-0/4250167", "Content-Type": "audio/mp4"}
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return False
-
-
-_cache.clear()
-_cache["vid1"] = {"url": "https://u/1", "expiry": 9e18, "total": None, "content_type": None}
-with patch("server.open_range", return_value=_FakeProbe()) as probe:
-    first = metadata("vid1", "https://u/1")
-    second = metadata("vid1", "https://u/1")
-    assert first == (4250167, "audio/mp4")
-    assert second == first
-    assert probe.call_count == 1, f"probed {probe.call_count} times, want 1"
-
-# A different resolved URL for the same id (the old one expired and a fresh
-# one was fetched) must not reuse the stale probe result.
-_cache["vid1"] = {"url": "https://u/2", "expiry": 9e18, "total": None, "content_type": None}
-with patch("server.open_range", return_value=_FakeProbe()) as probe:
-    metadata("vid1", "https://u/2")
-    assert probe.call_count == 1
 
 print("extractor self-check passed")

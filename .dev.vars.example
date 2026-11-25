@@ -8,10 +8,6 @@ YOUTUBE_API_KEY=replace_with_your_api_key
 # US,GB,KR,BR — but locally Cloudflare reports its own edge, so pin yours here.
 CHART_REGIONS=IN,US,GB,KR
 
-# The extractor box (see extractor/). Without these, YouTube rows appear in
-# search but will not play — everything else is unaffected.
-EXTRACTOR_URL=http://localhost:8099
-EXTRACTOR_TOKEN=replace_with_a_long_random_string
 
 # Optional: a self-hosted Lyrica instance (github.com/Wilooper/Lyrica), tried
 # before LRCLIB for every track regardless of which backend it streams from.

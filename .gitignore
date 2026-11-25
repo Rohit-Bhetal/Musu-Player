@@ -21,3 +21,9 @@ __pycache__/
 
 # local Claude Code agent state, not part of the app
 .claude/
+
+# a real YouTube account's session cookies — never committed
+extractor/cookies.txt
+
+# a real ProtonVPN account's WireGuard credentials — never committed
+extractor/protonvpn*.conf
